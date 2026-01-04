@@ -1,0 +1,1 @@
+export { createConfluenceGateway } from "./createConfluenceGateway";

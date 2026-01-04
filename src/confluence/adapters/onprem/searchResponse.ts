@@ -1,10 +1,10 @@
 /**
  * ref: https://developer.atlassian.com/server/confluence/rest/v9213/api-group-search/#api-group-search
  */
-export type ConfluenceSearchResponse = {
+export type SearchResponse = {
   totalCount?: number;
 
-  results: ConfluenceSearchResult[];
+  results: SearchResult[];
 
   start?: number;
   limit?: number;
@@ -19,7 +19,7 @@ export type ConfluenceSearchResponse = {
   };
 };
 
-export type ConfluenceSearchResult = {
+type SearchResult = {
   title?: string;
   excerpt?: string;
   url?: string;

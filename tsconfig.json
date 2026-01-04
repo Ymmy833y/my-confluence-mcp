@@ -23,6 +23,7 @@
 
     "paths": {
       "@config/*": ["./src/config/*"],
+      "@confluence": ["./src/confluence/index.ts"],
       "@confluence/*": ["./src/confluence/*"],
       "@cloud/*": ["./src/confluence/adapters/cloud/*"],
       "@onprem/*": ["./src/confluence/adapters/onprem/*"],

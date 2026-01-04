@@ -1,8 +1,8 @@
 /**
  * ref: https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-search/#api-group-search
  */
-export type ConfluenceSearchResponse = {
-  results: ConfluenceSearchResult[];
+export type SearchResponse = {
+  results: SearchResult[];
 
   start?: number;
   limit?: number;
@@ -22,7 +22,7 @@ export type ConfluenceSearchResponse = {
   };
 };
 
-export type ConfluenceSearchResult = {
+type SearchResult = {
   content?: {
     id?: string;
     type?: string;
