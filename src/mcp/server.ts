@@ -7,6 +7,7 @@ import { logger } from "@utils/logger";
 
 import pkg from "../../package.json";
 
+import { registerGetContentTool } from "./tools/registerGetContentTool";
 import { registerSearchTool } from "./tools/searchTool";
 
 export async function startMcpServer(env: Env) {
@@ -20,6 +21,11 @@ export async function startMcpServer(env: Env) {
   });
 
   registerSearchTool(server, confluence);
+
+  registerGetContentTool(server, confluence, {
+    defaultBodyMaxChars: confluenceCfg.bodyMaxChars,
+    maxBodyMaxChars: confluenceCfg.bodyMaxChars,
+  });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

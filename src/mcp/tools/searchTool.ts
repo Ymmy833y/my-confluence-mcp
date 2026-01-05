@@ -1,8 +1,5 @@
-import {
-  ConfluenceGateway,
-  SearchParams,
-  SearchResultPage,
-} from "@confluence/core/confluenceGateway";
+import { ConfluenceGateway } from "@core/confluenceGateway";
+import { SearchParams, SearchResultPage } from "@core/searchResult";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { logger } from "@utils/logger";
 import { z } from "zod";

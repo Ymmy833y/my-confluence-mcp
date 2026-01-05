@@ -20,9 +20,18 @@ export type SearchResponse = {
 };
 
 type SearchResult = {
+  id?: string;
+  status?: string;
+
   title?: string;
   excerpt?: string;
   url?: string;
+
+  space?: {
+    id?: number;
+    key?: string;
+    name?: string;
+  };
 
   resultParentContainer?: {
     title?: string;
@@ -41,4 +50,13 @@ type SearchResult = {
   entityType?: string;
 
   resourceType?: unknown;
+
+  content?: {
+    id?: string;
+    type?: string;
+    status?: string;
+    title?: string;
+    _links?: Record<string, string>;
+    _expandable?: Record<string, string>;
+  };
 };

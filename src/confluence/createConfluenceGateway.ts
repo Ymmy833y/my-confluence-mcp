@@ -1,7 +1,7 @@
 import { CloudConfluenceClient } from "@cloud/cloudConfluenceClient";
 import { CloudGateway } from "@cloud/cloudGateway";
 import { ConfluenceConfig } from "@config/confluenceConfig";
-import { ConfluenceGateway } from "@confluence/core/confluenceGateway";
+import { ConfluenceGateway } from "@core/confluenceGateway";
 import { OnPremConfluenceClient } from "@onprem/onpremConfluenceClient";
 import { OnPremGateway } from "@onprem/onpremGateway";
 
