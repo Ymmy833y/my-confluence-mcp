@@ -31,7 +31,7 @@ type SearchResult = {
     id?: number;
     key?: string;
     name?: string;
-  }
+  };
 
   resultParentContainer?: {
     title?: string;
