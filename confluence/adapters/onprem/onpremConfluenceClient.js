@@ -23,5 +23,19 @@ class OnPremConfluenceClient {
             },
         }, this.cfg.timeoutMs);
     }
+    /**
+     * On-Prem: 例) /rest/api/content/{id}?expand=space,version,body.storage
+     */
+    async getContentRaw(params) {
+        const encodedId = encodeURIComponent(params.id);
+        const url = new URL((0, url_1.joinUrlWithExpand)(this.cfg.baseUrl, `/rest/api/content/${encodedId}`, params.expand));
+        return (0, http_1.fetchJson)(url.toString(), {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                ...(0, auth_1.authHeaders)(this.cfg.auth),
+            },
+        }, this.cfg.timeoutMs);
+    }
 }
 exports.OnPremConfluenceClient = OnPremConfluenceClient;

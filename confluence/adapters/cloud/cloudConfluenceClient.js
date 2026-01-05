@@ -31,5 +31,20 @@ class CloudConfluenceClient {
             },
         }, this.cfg.timeoutMs);
     }
+    /**
+     * Cloud: 例) /wiki/rest/api/content/{id}?expand=space,version,body.storage
+     */
+    async getContentRaw(params) {
+        const base = cloudWikiBase(this.cfg.baseUrl);
+        const encodedId = encodeURIComponent(params.id);
+        const url = new URL((0, url_1.joinUrlWithExpand)(base, `/rest/api/content/${encodedId}`, params.expand));
+        return (0, http_1.fetchJson)(url.toString(), {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                ...(0, auth_1.authHeaders)(this.cfg.auth),
+            },
+        }, this.cfg.timeoutMs);
+    }
 }
 exports.CloudConfluenceClient = CloudConfluenceClient;

@@ -10,6 +10,15 @@ function toWebUrl(baseUrl, webui) {
         return webui;
     return `${base}${webui.startsWith("/") ? "" : "/"}${webui}`;
 }
+function pickBodyValue(rep, body) {
+    if (!body)
+        return undefined;
+    if (rep === "storage")
+        return body.storage?.value;
+    if (rep === "view")
+        return body.view?.value;
+    return body.export_view?.value;
+}
 class CloudGateway {
     client;
     baseUrl;
@@ -41,6 +50,42 @@ class CloudGateway {
             limit: raw.limit ?? limit,
             results,
         };
+    }
+    async getContent(params) {
+        const rep = params.bodyRepresentation ?? "storage";
+        const includeLabels = params.includeLabels ?? false;
+        const expandParts = ["space", "version", `body.${rep}`];
+        if (includeLabels)
+            expandParts.push("metadata.labels");
+        const raw = await this.client.getContentRaw({
+            id: params.id,
+            expand: expandParts.join(","),
+        });
+        const url = toWebUrl(this.baseUrl, raw._links?.webui);
+        const spaceKey = raw.space?.key;
+        const spaceName = raw.space?.name;
+        const updated = raw.version?.when;
+        const versionRaw = raw.version?.number;
+        const version = versionRaw != null ? String(versionRaw) : undefined;
+        const bodyValue = pickBodyValue(rep, raw.body);
+        const labels = raw.metadata?.labels?.results
+            ?.map((x) => x.name)
+            .filter((x) => typeof x === "string" && x.length > 0) ??
+            [];
+        const result = {
+            id: raw.id,
+            type: raw.type,
+            title: raw.title,
+            ...(raw.status ? { status: raw.status } : {}),
+            url,
+            ...(spaceKey ? { spaceKey } : {}),
+            ...(spaceName ? { spaceName } : {}),
+            ...(updated ? { updated } : {}),
+            ...(version != null ? { version } : {}),
+            ...(bodyValue ? { body: { representation: rep, value: bodyValue } } : {}),
+            ...(includeLabels ? { labels } : {}),
+        };
+        return result;
     }
 }
 exports.CloudGateway = CloudGateway;

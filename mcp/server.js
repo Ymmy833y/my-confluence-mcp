@@ -10,6 +10,7 @@ const mcp_js_1 = require("@modelcontextprotocol/sdk/server/mcp.js");
 const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
 const logger_1 = require("../utils/logger");
 const package_json_1 = __importDefault(require("../../package.json"));
+const registerGetContentTool_1 = require("./tools/registerGetContentTool");
 const searchTool_1 = require("./tools/searchTool");
 async function startMcpServer(env) {
     const confluenceCfg = (0, confluenceConfig_1.createConfluenceConfig)(env);
@@ -19,6 +20,10 @@ async function startMcpServer(env) {
         version: package_json_1.default.version,
     });
     (0, searchTool_1.registerSearchTool)(server, confluence);
+    (0, registerGetContentTool_1.registerGetContentTool)(server, confluence, {
+        defaultBodyMaxChars: confluenceCfg.bodyMaxChars,
+        maxBodyMaxChars: confluenceCfg.bodyMaxChars,
+    });
     const transport = new stdio_js_1.StdioServerTransport();
     await server.connect(transport);
     logger_1.logger.info(`Confluence MCP Server running on stdio ${JSON.stringify({
