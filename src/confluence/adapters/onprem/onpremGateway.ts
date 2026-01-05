@@ -59,8 +59,8 @@ export class OnPremGateway implements ConfluenceGateway {
               r.resultParentContainer?.displayUrl ??
               r.resultGlobalContainer?.displayUrl,
           );
-          const id = stableIdFromUrl(url);
-          const title = r.title ?? "";
+          const id = r.id ?? stableIdFromUrl(url);
+          const title = r.title ?? r.content?.title ?? "";
 
           if (!id || !title) return null;
 
@@ -68,7 +68,7 @@ export class OnPremGateway implements ConfluenceGateway {
             id,
             title,
             url,
-            spaceKey: undefined,
+            spaceKey: r.space?.key,
             updated: r.lastModified,
             excerpt: r.excerpt,
           };
