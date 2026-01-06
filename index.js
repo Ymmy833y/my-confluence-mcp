@@ -24,12 +24,14 @@ function createConfluenceConfig(env) {
     const auth = env.CONFLUENCE_PERSONAL_ACCESS_TOKEN
         ? exports.ConfluenceAuth.bearer(env.CONFLUENCE_PERSONAL_ACCESS_TOKEN)
         : exports.ConfluenceAuth.basic(env.CONFLUENCE_EMAIL, env.CONFLUENCE_API_TOKEN);
+    const defaultCql = env.CONFLUENCE_DEFAULT_CQL?.trim();
     return {
         baseUrl,
         hosting: env.CONFLUENCE_HOSTING,
         auth,
         timeoutMs: env.CONFLUENCE_TIMEOUT_MS,
         bodyMaxChars: env.CONFLUENCE_BODY_MAX_CHARS,
+        ...(defaultCql ? { defaultCql } : {}),
     };
 }
 
@@ -53,6 +55,12 @@ const envSchema = zod_1.z
     CONFLUENCE_EMAIL: zod_1.z.string().min(3).optional(),
     CONFLUENCE_API_TOKEN: zod_1.z.string().min(5).optional(),
     CONFLUENCE_PERSONAL_ACCESS_TOKEN: zod_1.z.string().min(5).optional(),
+    CONFLUENCE_DEFAULT_CQL: zod_1.z.preprocess((v) => {
+        if (v == null)
+            return undefined;
+        const s = String(v).trim();
+        return s === "" ? undefined : s;
+    }, zod_1.z.string().min(1).max(4000).optional()),
     CONFLUENCE_TIMEOUT_MS: zod_1.z.preprocess((v) => {
         if (v == null || v === "")
             return 15000;
@@ -485,7 +493,7 @@ async function startMcpServer(env) {
         name: package_json_1.default.name,
         version: package_json_1.default.version,
     });
-    (0, searchTool_1.registerSearchTool)(server, confluence);
+    (0, searchTool_1.registerSearchTool)(server, confluence, confluenceCfg.defaultCql ? { defaultCql: confluenceCfg.defaultCql } : {});
     (0, registerGetContentTool_1.registerGetContentTool)(server, confluence, {
         defaultBodyMaxChars: confluenceCfg.bodyMaxChars,
         maxBodyMaxChars: confluenceCfg.bodyMaxChars,
@@ -497,6 +505,7 @@ async function startMcpServer(env) {
         baseUrl: confluenceCfg.baseUrl,
         timeoutMs: confluenceCfg.timeoutMs,
         bodyMaxChars: confluenceCfg.bodyMaxChars,
+        defaultCql: confluenceCfg.defaultCql ?? null,
         auth: confluenceCfg.auth.kind,
     })}`);
 }
@@ -744,9 +753,27 @@ function toMarkdown(page) {
     }
     return lines.join("\n");
 }
+function mergeCql(defaultCql, userCql) {
+    const d = defaultCql?.trim();
+    const u = userCql.trim();
+    if (!d)
+        return u;
+    // ORDER BY を最初に見つけた箇所で分割（case-insensitive）
+    const m = /(^|\s)order\s+by\s/i.exec(u);
+    if (!m || m.index == null) {
+        const merged = `(${d}) AND (${u})`;
+        return merged;
+    }
+    const idx = m.index;
+    const main = u.slice(0, idx).trim();
+    const orderBy = u.slice(idx).trim();
+    const mergedMain = `(${d}) AND (${main})`;
+    return `${mergedMain} ${orderBy}`.trim();
+}
 function registerSearchTool(server, gateway, options = {}) {
     const defaultLimit = options.defaultLimit ?? 25;
     const maxLimit = options.maxLimit ?? 50;
+    const defaultCql = options.defaultCql?.trim() || undefined;
     server.registerTool("confluence_search", {
         title: "Confluence Search",
         description: "Run a Confluence CQL search and return normalized results.",
@@ -761,12 +788,24 @@ function registerSearchTool(server, gateway, options = {}) {
         // exactOptionalPropertyTypes 対策
         const limit = clampInt(input.limit ?? defaultLimit, 1, maxLimit);
         const start = Math.max(0, input.start ?? 0);
+        const mergedCql = mergeCql(defaultCql, input.cql);
+        if (mergedCql.length > 4000) {
+            throw new Error(`CQL is too long after merging default CQL (len=${mergedCql.length}). Reduce CONFLUENCE_DEFAULT_CQL or input cql.`);
+        }
         const params = {
-            cql: input.cql,
+            cql: mergedCql,
             limit,
             start,
         };
-        logger_1.logger.info(`tool called: ${JSON.stringify({ tool: "confluence_search", required: requestId, params })}`);
+        logger_1.logger.info(`tool called: ${JSON.stringify({
+            tool: "confluence_search",
+            requestId,
+            params: {
+                ...params,
+                userCql: input.cql,
+                defaultCql: defaultCql ?? null,
+            },
+        })}`);
         try {
             const page = await gateway.search(params);
             const structured = {
@@ -889,7 +928,7 @@ exports.logger = (0, winston_1.createLogger)({
             format: consoleFormat,
         }),
         new winston_1.transports.File({
-            filename: "log/app.log",
+            filename: "log/my-confluence-mcp.log",
             level: "debug",
             format: winston_1.format.printf(customPrintfFormat),
         }),
