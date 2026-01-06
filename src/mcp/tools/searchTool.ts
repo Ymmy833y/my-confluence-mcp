@@ -7,6 +7,7 @@ import { z } from "zod";
 export type RegisterSearchToolOptions = {
   defaultLimit?: number; // default: 25
   maxLimit?: number; // default: 50
+  defaultCql?: string;
 };
 
 const inputSchema = {
@@ -76,6 +77,25 @@ function toMarkdown(page: SearchResultPage): string {
   }
   return lines.join("\n");
 }
+function mergeCql(defaultCql: string | undefined, userCql: string): string {
+  const d = defaultCql?.trim();
+  const u = userCql.trim();
+  if (!d) return u;
+
+  // ORDER BY を最初に見つけた箇所で分割（case-insensitive）
+  const m = /(^|\s)order\s+by\s/i.exec(u);
+  if (!m || m.index == null) {
+    const merged = `(${d}) AND (${u})`;
+    return merged;
+  }
+
+  const idx = m.index;
+  const main = u.slice(0, idx).trim();
+  const orderBy = u.slice(idx).trim();
+
+  const mergedMain = `(${d}) AND (${main})`;
+  return `${mergedMain} ${orderBy}`.trim();
+}
 
 export function registerSearchTool(
   server: McpServer,
@@ -84,6 +104,7 @@ export function registerSearchTool(
 ) {
   const defaultLimit = options.defaultLimit ?? 25;
   const maxLimit = options.maxLimit ?? 50;
+  const defaultCql = options.defaultCql?.trim() || undefined;
 
   server.registerTool(
     "confluence_search",
@@ -104,14 +125,29 @@ export function registerSearchTool(
       const limit = clampInt(input.limit ?? defaultLimit, 1, maxLimit);
       const start = Math.max(0, input.start ?? 0);
 
+      const mergedCql = mergeCql(defaultCql, input.cql);
+      if (mergedCql.length > 4000) {
+        throw new Error(
+          `CQL is too long after merging default CQL (len=${mergedCql.length}). Reduce CONFLUENCE_DEFAULT_CQL or input cql.`,
+        );
+      }
+
       const params: SearchParams = {
-        cql: input.cql,
+        cql: mergedCql,
         limit,
         start,
       };
 
       logger.info(
-        `tool called: ${JSON.stringify({ tool: "confluence_search", required: requestId, params })}`,
+        `tool called: ${JSON.stringify({
+          tool: "confluence_search",
+          requestId,
+          params: {
+            ...params,
+            userCql: input.cql,
+            defaultCql: defaultCql ?? null,
+          },
+        })}`,
       );
 
       try {

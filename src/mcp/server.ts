@@ -20,7 +20,11 @@ export async function startMcpServer(env: Env) {
     version: pkg.version,
   });
 
-  registerSearchTool(server, confluence);
+  registerSearchTool(
+    server,
+    confluence,
+    confluenceCfg.defaultCql ? { defaultCql: confluenceCfg.defaultCql } : {},
+  );
 
   registerGetContentTool(server, confluence, {
     defaultBodyMaxChars: confluenceCfg.bodyMaxChars,
@@ -36,6 +40,7 @@ export async function startMcpServer(env: Env) {
       baseUrl: confluenceCfg.baseUrl,
       timeoutMs: confluenceCfg.timeoutMs,
       bodyMaxChars: confluenceCfg.bodyMaxChars,
+      defaultCql: confluenceCfg.defaultCql ?? null,
       auth: confluenceCfg.auth.kind,
     })}`,
   );

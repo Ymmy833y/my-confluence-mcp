@@ -29,7 +29,7 @@ export const logger = createLogger({
       format: consoleFormat,
     }),
     new transports.File({
-      filename: "log/app.log",
+      filename: "log/my-confluence-mcp.log",
       level: "debug",
       format: format.printf(customPrintfFormat),
     }),
