@@ -17,6 +17,85 @@
 - AI（Copilotなど）に「Confluenceで◯◯を探して」と依頼すると、内部的に検索ツールが実行されます。
 - より正確に絞り込みたい場合は、CQLの条件（スペース・タイトル・ラベルなど）を意識した依頼が有効です。
 
+### デフォルトCQL（環境変数 `CONFLUENCE_DEFAULT_CQL`）
+検索時に「必ず適用したいCQL」を、環境変数として固定できます。  
+これにより、ツール利用者（AIやユーザー）が入力したCQLに関わらず、常に組織ルールに沿った絞り込み（例：特定スペースのみ、ページのみ、機密ラベル除外など）を強制できます。
+
+- 設定方法（例）
+  ```env
+  "CONFLUENCE_DEFAULT_CQL=space": "SAMPLE AND type = page AND status = current"
+  ```
+
+* 実際の検索では、概ね次のように合成されます（概念図）
+
+  ```text
+  (<default_cql>) AND (<user_cql>)
+  ```
+
+  なお、ユーザーのCQLに `ORDER BY` が含まれている場合は、**`ORDER BY` はユーザー側を優先して末尾に保持** します（例：`ORDER BY lastmodified DESC`）。
+
+#### 良い例（推奨）
+
+“常に適用したいフィルタ条件”だけをデフォルトに寄せるのが基本です。
+
+* 特定スペースに固定して、AIの検索ブレを抑える
+
+  ```env
+  "CONFLUENCE_DEFAULT_CQL": "space = SAMPLE"
+  ```
+
+  ユーザー入力（例）:
+
+  ```cql
+  text ~ "手順書" ORDER BY lastmodified DESC
+  ```
+
+  合成イメージ:
+
+  ```cql
+  (space = DVA) AND (text ~ "手順書") ORDER BY lastmodified DESC
+  ```
+
+* 「ページのみ」「現行のみ」などの安全な共通条件を強制する
+
+  ```env
+  "CONFLUENCE_DEFAULT_CQL": "type = page AND status = current"
+  ```
+
+* 機密ラベルを除外（運用に合わせて）
+
+  ```env
+  "CONFLUENCE_DEFAULT_CQL": "label != secret AND label != confidential"
+  ```
+
+#### 悪い例（避けたい）
+
+デフォルトCQLは“常に強制される”ため、入れ方を誤ると検索体験が壊れやすいです。
+
+* `ORDER BY` をデフォルトに入れてしまう
+  デフォルト側に `ORDER BY` を含めると、ユーザーCQLの `ORDER BY` と衝突・二重化しやすく、意図しないクエリになりがちです。
+
+  ```env
+  # 悪い例
+  "CONFLUENCE_DEFAULT_CQL": "space = DVA ORDER BY lastmodified DESC"
+  ```
+
+* “強すぎる絞り込み”をデフォルトに入れてしまう
+  例：特定ラベル必須、特定タイトル必須などは、検索ヒットが極端に減って「検索できない」に見えやすいです。
+
+  ```env
+  # 悪い例（運用上の狙いがない限り避ける）
+  "CONFLUENCE_DEFAULT_CQL": "label = must-have-label"
+  ```
+
+* 長大なCQLを詰め込みすぎる
+  CQLには長さ上限があり、デフォルトとユーザー入力を合成すると上限を超えて失敗することがあります（運用ルールは短く・要点だけにするのがおすすめです）。
+
+  ```env
+  # 悪い例（長すぎる/複雑すぎる）
+  "CONFLUENCE_DEFAULT_CQL": "(...非常に長い条件...)"
+  ```
+
 ### 出力（イメージ）
 - 検索結果は **ページの候補一覧** として返ります。
 - 候補が複数ある場合、ユーザーは「このページを開いて」といった形で次の「ページ内容の取得」に進めます。
@@ -24,6 +103,8 @@
 ### 注意点
 - 検索の自由度は高い一方で、CQLの指定が曖昧だと候補が多くなりがちです。
 - Confluence側の権限に依存します（閲覧権限がないページは取得できません）。
+- `CONFLUENCE_DEFAULT_CQL` を設定している場合、検索は常にその条件で **追加フィルタ** されます（ユーザー入力だけでは解除できません）。
+  「検索できない」「想定よりヒットが少ない」場合は、まずデフォルトCQLの条件を確認してください。
 
 ---
 

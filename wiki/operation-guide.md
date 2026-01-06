@@ -81,7 +81,9 @@ MCP サーバーを追加したいプロジェクト側に、次のファイル�
         "CONFLUENCE_API_TOKEN": "xxxxxxxxxx",
 
         "CONFLUENCE_PERSONAL_ACCESS_TOKEN": "",
-        "CONFLUENCE_BODY_MAX_CHARS": "20000"
+        "CONFLUENCE_BODY_MAX_CHARS": "20000",
+
+        "CONFLUENCE_DEFAULT_CQL": "space = SAMPLE AND type = page"
       }
     }
   }
