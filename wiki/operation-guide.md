@@ -1,6 +1,8 @@
 # 操作ガイド
 
 ここでは、**my-confluence-mcp** を「ビルド済み成果物（build ブランチ）」として導入し、**特定プロジェクトに MCP サーバーを追加して使い始めるまで**の手順を説明します。\
+実際の使い方については、[機能一覧](./features) を参考にしてください。
+
 （対象：主に **Windows + VS Code + GitHub Copilot** を想定）
 
 ---
@@ -129,6 +131,9 @@ Copilot Chat（または利用しているAIクライアント）で、例えば
 > [!IMPORTANT]
 > オンプレ環境の場合、REST API のレスポンスが環境（バージョン・設定）により揺れる可能性があります。\
 > 詳細については、[オンプレ環境の REST API レスポンス検証](./onprem-api-response-compatibility-checklist) を確認してください。
+
+> [!NOTE]
+> **my-confluence-mcp** の基本的な使い方については、[機能一覧](./features) を参考にしてください。
 
 ---
 

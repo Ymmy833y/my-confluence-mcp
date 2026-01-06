@@ -13,5 +13,5 @@ Confluence Cloud および オンプレミス版 (Data Center/Server) の双方�
 本プロジェクトの詳細なドキュメントやガイドは以下の各ページにまとめられています。
 
 * **[機能一覧](./features)** – 提供する機能の詳細と仕様の一覧。
-* **[操作ガイド](./operation-guide.md)** – サーバーの起動方法やCopilotへの組み込み手順など、My Confluence MCP の具体的な使用方法。
-* **[参考資料](./reference.md)** – my-confluence-mcp の検索・ページ取得 に必要な公式ドキュメントへのリンク集。
+* **[操作ガイド](./operation-guide)** – サーバーの起動方法やCopilotへの組み込み手順など、My Confluence MCP の具体的な使用方法。
+* **[参考資料](./reference)** – my-confluence-mcp の検索・ページ取得 に必要な公式ドキュメントへのリンク集。
