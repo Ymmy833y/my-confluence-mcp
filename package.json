@@ -7,13 +7,15 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc && tsc-alias",
-    "start": "node build/index.js",
+    "bundle": "ncc build build/index.js -o dist",
+    "start": "node dist/index.js",
     "lint": "npx eslint .",
     "lint:fix": "npx eslint . --fix"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/node": "^25.0.3",
+    "@vercel/ncc": "^0.38.4",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",

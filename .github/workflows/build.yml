@@ -35,15 +35,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build (tsc)
         run: npm run build
 
-      - name: Push build to branch
+      - name: Bundle (ncc)
+        run: npm run bundle
+
+      - name: Copy docs into dist
+        run: |
+          cp README.md dist/ || true
+          cp LICENSE dist/ || true
+
+      - name: Push bundled output to branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: build
-          folder: build
+          folder: dist
           clean: true
-          commit-message: "build: update build (${{ github.ref_name }}) from ${{ github.sha }}"
+          commit-message: "build: update bundled build from ${{ github.sha }}"
           git-config-name: github-actions[bot]
           git-config-email: 41898282+github-actions[bot]@users.noreply.github.com
