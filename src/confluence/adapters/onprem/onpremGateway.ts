@@ -4,6 +4,7 @@ import type {
   GetContentResult,
 } from "@core/getContentResult";
 import { SearchParams, SearchResultPage } from "@core/searchResult";
+import { logger } from "@utils/logger";
 
 import { OnPremConfluenceClient } from "./onpremConfluenceClient";
 
@@ -13,13 +14,6 @@ function toWebUrl(baseUrl: string, webui?: string): string | null {
   const base = baseUrl.replace(/\/+$/, "");
   if (webui.startsWith("http://") || webui.startsWith("https://")) return webui;
   return `${base}${webui.startsWith("/") ? "" : "/"}${webui}`;
-}
-
-function stableIdFromUrl(url: string | null): string | null {
-  if (!url) return null;
-  // オンプレの search 結果は id が無いことがある（らしい）ので暫定IDを生成
-  // 例: .../display/SPACEKEY/Page+Title
-  return `url:${url}`;
 }
 
 function pickBodyValue(
@@ -59,10 +53,15 @@ export class OnPremGateway implements ConfluenceGateway {
               r.resultParentContainer?.displayUrl ??
               r.resultGlobalContainer?.displayUrl,
           );
-          const id = r.id ?? stableIdFromUrl(url);
+          const id = r.id ?? r.content?.id;
           const title = r.title ?? r.content?.title ?? "";
 
-          if (!id || !title) return null;
+          if (!id || !title) {
+            logger.warn(
+              `Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`,
+            );
+            return null;
+          }
 
           return {
             id,
