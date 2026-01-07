@@ -171,12 +171,13 @@ exports.CloudConfluenceClient = CloudConfluenceClient;
 /***/ }),
 
 /***/ 1876:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CloudGateway = void 0;
+const logger_1 = __nccwpck_require__(8993);
 function toWebUrl(baseUrl, webui) {
     if (!webui)
         return null;
@@ -215,8 +216,10 @@ class CloudGateway {
             const spaceKey = c?.space?.key;
             const updated = c?.version?.when;
             const excerpt = r.excerpt;
-            if (!id || !title)
+            if (!id || !title) {
+                logger_1.logger.warn(`Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`);
                 return null;
+            }
             return { id, title, url, spaceKey, updated, excerpt };
         })
             ?.filter((x) => x !== null) ?? [];
@@ -319,12 +322,13 @@ exports.OnPremConfluenceClient = OnPremConfluenceClient;
 /***/ }),
 
 /***/ 8108:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.OnPremGateway = void 0;
+const logger_1 = __nccwpck_require__(8993);
 function toWebUrl(baseUrl, webui) {
     if (!webui)
         return null;
@@ -332,13 +336,6 @@ function toWebUrl(baseUrl, webui) {
     if (webui.startsWith("http://") || webui.startsWith("https://"))
         return webui;
     return `${base}${webui.startsWith("/") ? "" : "/"}${webui}`;
-}
-function stableIdFromUrl(url) {
-    if (!url)
-        return null;
-    // オンプレの search 結果は id が無いことがある（らしい）ので暫定IDを生成
-    // 例: .../display/SPACEKEY/Page+Title
-    return `url:${url}`;
 }
 function pickBodyValue(rep, body) {
     if (!body)
@@ -365,10 +362,12 @@ class OnPremGateway {
             const url = toWebUrl(this.baseUrl, r.url ??
                 r.resultParentContainer?.displayUrl ??
                 r.resultGlobalContainer?.displayUrl);
-            const id = r.id ?? stableIdFromUrl(url);
+            const id = r.id ?? r.content?.id;
             const title = r.title ?? r.content?.title ?? "";
-            if (!id || !title)
+            if (!id || !title) {
+                logger_1.logger.warn(`Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`);
                 return null;
+            }
             return {
                 id,
                 title,
