@@ -23,7 +23,7 @@
 
 - 設定方法（例）
   ```env
-  "CONFLUENCE_DEFAULT_CQL=space": "SAMPLE AND type = page AND status = current"
+  "CONFLUENCE_DEFAULT_CQL": "space = SAMPLE AND type = page AND status = current"
   ```
 
 * 実際の検索では、概ね次のように合成されます（概念図）

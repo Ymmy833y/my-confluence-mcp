@@ -4,6 +4,7 @@ import type {
   GetContentResult,
 } from "@core/getContentResult";
 import { SearchParams, SearchResultPage } from "@core/searchResult";
+import { logger } from "@utils/logger";
 
 import { CloudConfluenceClient } from "./cloudConfluenceClient";
 
@@ -55,7 +56,12 @@ export class CloudGateway implements ConfluenceGateway {
           const updated = c?.version?.when;
           const excerpt = r.excerpt;
 
-          if (!id || !title) return null;
+          if (!id || !title) {
+            logger.warn(
+              `Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`,
+            );
+            return null;
+          }
 
           return { id, title, url, spaceKey, updated, excerpt };
         })
