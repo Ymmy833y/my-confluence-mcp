@@ -3,10 +3,10 @@ import type {
   GetContentParams,
   GetContentResult,
 } from "@core/getContentResult";
-import { SearchParams, SearchResultPage } from "@core/searchResult";
-import { logger } from "@utils/logger";
+import { SearchRequestParams, SearchResponseDto } from "@core/searchTypes";
 
 import { CloudConfluenceClient } from "./cloudConfluenceClient";
+import { toSearchResponseDto } from "./mappers/searchMapper";
 
 function toWebUrl(baseUrl: string, webui?: string): string | null {
   if (!webui) return null;
@@ -39,40 +39,9 @@ export class CloudGateway implements ConfluenceGateway {
     private readonly baseUrl: string,
   ) {}
 
-  async search(params: SearchParams): Promise<SearchResultPage> {
-    const limit = params.limit ?? 25;
-    const start = params.start ?? 0;
-
-    const raw = await this.client.searchRaw({ cql: params.cql, limit, start });
-
-    const results =
-      raw.results
-        ?.map((r) => {
-          const c = r.content;
-          const id = c?.id ?? ""; // 取れないケースは後で調整
-          const title = c?.title ?? r.title ?? "";
-          const url = toWebUrl(this.baseUrl, c?._links?.webui ?? r.url);
-          const spaceKey = c?.space?.key;
-          const updated = c?.version?.when;
-          const excerpt = r.excerpt;
-
-          if (!id || !title) {
-            logger.warn(
-              `Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`,
-            );
-            return null;
-          }
-
-          return { id, title, url, spaceKey, updated, excerpt };
-        })
-        ?.filter((x): x is NonNullable<typeof x> => x !== null) ?? [];
-
-    return {
-      total: raw.totalSize ?? results.length,
-      start: raw.start ?? start,
-      limit: raw.limit ?? limit,
-      results,
-    };
+  async search(params: SearchRequestParams): Promise<SearchResponseDto> {
+    const response = await this.client.searchRaw(params);
+    return toSearchResponseDto(params, response);
   }
 
   async getContent(params: GetContentParams): Promise<GetContentResult> {
