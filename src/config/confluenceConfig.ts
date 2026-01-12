@@ -19,7 +19,8 @@ export interface ConfluenceConfig {
   auth: ConfluenceAuth;
   timeoutMs: number;
   bodyMaxChars: number;
-  defaultCql?: string;
+  searchMaxLimit?: number;
+  searchDefaultCql?: string;
 }
 
 export const ConfluenceConfig = {} as const;
@@ -36,7 +37,8 @@ export function createConfluenceConfig(env: Env): ConfluenceConfig {
     ? ConfluenceAuth.bearer(env.CONFLUENCE_PERSONAL_ACCESS_TOKEN)
     : ConfluenceAuth.basic(env.CONFLUENCE_EMAIL!, env.CONFLUENCE_API_TOKEN!);
 
-  const defaultCql = env.CONFLUENCE_DEFAULT_CQL?.trim();
+  const searchMaxLimit = env.CONFLUENCE_SEARCH_MAX_LIMIT;
+  const searchDefaultCql = env.CONFLUENCE_DEFAULT_CQL?.trim();
 
   return {
     baseUrl,
@@ -44,6 +46,7 @@ export function createConfluenceConfig(env: Env): ConfluenceConfig {
     auth,
     timeoutMs: env.CONFLUENCE_TIMEOUT_MS,
     bodyMaxChars: env.CONFLUENCE_BODY_MAX_CHARS,
-    ...(defaultCql ? { defaultCql } : {}),
+    ...(searchMaxLimit ? { searchMaxLimit } : {}),
+    ...(searchDefaultCql ? { searchDefaultCql } : {}),
   };
 }

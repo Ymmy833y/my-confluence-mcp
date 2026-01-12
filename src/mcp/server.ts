@@ -8,7 +8,7 @@ import { logger } from "@utils/logger";
 import pkg from "../../package.json";
 
 import { registerGetContentTool } from "./tools/registerGetContentTool";
-import { registerSearchTool } from "./tools/searchTool";
+import { registerSearchTool } from "./tools/search/index";
 
 export async function startMcpServer(env: Env) {
   const confluenceCfg = createConfluenceConfig(env);
@@ -20,11 +20,10 @@ export async function startMcpServer(env: Env) {
     version: pkg.version,
   });
 
-  registerSearchTool(
-    server,
-    confluence,
-    confluenceCfg.defaultCql ? { defaultCql: confluenceCfg.defaultCql } : {},
-  );
+  registerSearchTool(server, confluence, {
+    maxLimit: confluenceCfg.searchMaxLimit,
+    defaultCql: confluenceCfg.searchDefaultCql,
+  });
 
   registerGetContentTool(server, confluence, {
     defaultBodyMaxChars: confluenceCfg.bodyMaxChars,
@@ -40,7 +39,7 @@ export async function startMcpServer(env: Env) {
       baseUrl: confluenceCfg.baseUrl,
       timeoutMs: confluenceCfg.timeoutMs,
       bodyMaxChars: confluenceCfg.bodyMaxChars,
-      defaultCql: confluenceCfg.defaultCql ?? null,
+      defaultCql: confluenceCfg.searchDefaultCql ?? null,
       auth: confluenceCfg.auth.kind,
     })}`,
   );

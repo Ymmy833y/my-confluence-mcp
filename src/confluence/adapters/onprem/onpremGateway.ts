@@ -3,9 +3,9 @@ import type {
   GetContentParams,
   GetContentResult,
 } from "@core/getContentResult";
-import { SearchParams, SearchResultPage } from "@core/searchResult";
-import { logger } from "@utils/logger";
+import { SearchRequestParams, SearchResponseDto } from "@core/searchTypes";
 
+import { toSearchResponseDto } from "./mappers/searchMapper";
 import { OnPremConfluenceClient } from "./onpremConfluenceClient";
 
 function toWebUrl(baseUrl: string, webui?: string): string | null {
@@ -38,48 +38,9 @@ export class OnPremGateway implements ConfluenceGateway {
     private readonly baseUrl: string,
   ) {}
 
-  async search(params: SearchParams): Promise<SearchResultPage> {
-    const limit = params.limit ?? 25;
-    const start = params.start ?? 0;
-
-    const raw = await this.client.searchRaw({ cql: params.cql, limit, start });
-
-    const results =
-      raw.results
-        ?.map((r) => {
-          const url = toWebUrl(
-            this.baseUrl,
-            r.url ??
-              r.resultParentContainer?.displayUrl ??
-              r.resultGlobalContainer?.displayUrl,
-          );
-          const id = r.id ?? r.content?.id;
-          const title = r.title ?? r.content?.title ?? "";
-
-          if (!id || !title) {
-            logger.warn(
-              `Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`,
-            );
-            return null;
-          }
-
-          return {
-            id,
-            title,
-            url,
-            spaceKey: r.space?.key,
-            updated: r.lastModified,
-            excerpt: r.excerpt,
-          };
-        })
-        ?.filter((x): x is NonNullable<typeof x> => x !== null) ?? [];
-
-    return {
-      total: raw.totalCount ?? results.length,
-      start: raw.start ?? start,
-      limit: raw.limit ?? limit,
-      results,
-    };
+  async search(params: SearchRequestParams): Promise<SearchResponseDto> {
+    const response = await this.client.searchRaw(params);
+    return toSearchResponseDto(params, response);
   }
 
   async getContent(params: GetContentParams): Promise<GetContentResult> {

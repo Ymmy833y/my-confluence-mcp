@@ -13,6 +13,8 @@ const envSchema = z
     CONFLUENCE_API_TOKEN: z.string().min(5).optional(),
     CONFLUENCE_PERSONAL_ACCESS_TOKEN: z.string().min(5).optional(),
 
+    CONFLUENCE_SEARCH_MAX_LIMIT: z.number().min(0).optional(),
+
     CONFLUENCE_DEFAULT_CQL: z.preprocess((v) => {
       if (v == null) return undefined;
       const s = String(v).trim();
