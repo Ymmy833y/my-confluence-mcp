@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - "release/*"
 
 permissions:
   contents: write
@@ -46,10 +47,24 @@ jobs:
           cp README.md dist/ || true
           cp LICENSE dist/ || true
 
+      - name: Determine deploy branch
+        id: deploy
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "master" ]]; then
+            echo "branch=build" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF_NAME}" == release/* ]]; then
+            version="${GITHUB_REF_NAME#release/}"
+            echo "branch=build-${version}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported branch: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
       - name: Push bundled output to branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          branch: build
+          branch: ${{ steps.deploy.outputs.branch }}
           folder: dist
           clean: true
           commit-message: "build: update bundled build from ${{ github.sha }}"
