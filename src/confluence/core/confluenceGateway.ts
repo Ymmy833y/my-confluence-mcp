@@ -1,6 +1,6 @@
-import { GetContentParams, GetContentResult } from "./getContentResult";
+import { GetContentParams, GetContentResultDto } from "./getContentTypes";
 import { SearchRequestParams, SearchResponseDto } from "./searchTypes";
 export interface ConfluenceGateway {
   search(params: SearchRequestParams): Promise<SearchResponseDto>;
-  getContent(params: GetContentParams): Promise<GetContentResult>;
+  getContent(params: GetContentParams): Promise<GetContentResultDto>;
 }

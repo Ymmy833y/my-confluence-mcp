@@ -3,8 +3,8 @@ import { authHeaders } from "@utils/auth";
 import { fetchJson } from "@utils/http";
 import { ensureNoTrailingSlash, joinUrl, joinUrlWithExpand } from "@utils/url";
 
-import { GetContentResponse } from "./getContentResponse";
-import { SearchResponse } from "./searchResponse";
+import { GetContentResponse } from "./api/getContentResponse";
+import { SearchResponse } from "./api/searchResponse";
 
 // Cloud は baseUrl が https://xxx.atlassian.net/wiki のことも、https://xxx.atlassian.net のこともあるので補正
 function cloudWikiBase(baseUrl: string): string {

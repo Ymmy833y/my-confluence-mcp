@@ -3,8 +3,8 @@ import { authHeaders } from "@utils/auth";
 import { fetchJson } from "@utils/http";
 import { joinUrl, joinUrlWithExpand } from "@utils/url";
 
-import type { GetContentResponse } from "./getContentResponse";
-import { SearchResponse } from "./searchResponse";
+import type { GetContentResponse } from "./api/getContentResponse";
+import { SearchResponse } from "./api/searchResponse";
 
 export class OnPremConfluenceClient {
   constructor(private readonly cfg: ConfluenceConfig) {}

@@ -17,3 +17,12 @@ export function joinUrlWithExpand(
   }
   return url.toString();
 }
+
+export function toWebUrl(baseUrl: string, webui?: string): string | undefined {
+  if (!webui) return undefined;
+
+  if (/^https?:\/\//i.test(webui)) return webui;
+
+  const base = baseUrl.replace(/\/+$/, "") + "/";
+  return new URL(webui.replace(/^\/+/, ""), base).toString();
+}

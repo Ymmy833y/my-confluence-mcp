@@ -9,11 +9,10 @@ import type { SearchToolInput, SearchToolOutput } from "./types";
 export const SEARCH_TOOL_NAME = "confluence_search";
 
 const DEFAULT_LIMIT = 10;
-const MAX_LIMIT = 50;
 
 export type RegisterSearchToolOptions = {
-  maxLimit?: number | undefined; // default: 50
-  defaultCql?: string | undefined;
+  maxLimit: number; // default: 50
+  defaultCql: string;
 };
 
 function mergeCql(inputCql: string, defaultCql?: string) {
@@ -60,12 +59,8 @@ function toMarkdown(out: SearchToolOutput): string {
 export function registerSearchTool(
   server: McpServer,
   gateway: ConfluenceGateway,
-  options: RegisterSearchToolOptions = {},
+  options: RegisterSearchToolOptions,
 ): void {
-  const defaultLimit = DEFAULT_LIMIT;
-  const maxLimit = options.maxLimit ?? MAX_LIMIT;
-  const defaultCql = options.defaultCql?.trim();
-
   const inputSchema = SearchInputSchema.shape;
   const outputSchema = SearchOutputSchema.shape;
 
@@ -86,9 +81,12 @@ export function registerSearchTool(
       const requestId = ctx.requestId;
       const typedInput = input as SearchToolInput;
 
-      const cql = mergeCql(typedInput.cql, defaultCql);
+      const cql = mergeCql(typedInput.cql, options.defaultCql);
 
-      const limit = clampInt(typedInput.limit ?? defaultLimit, maxLimit);
+      const limit = clampInt(
+        typedInput.limit ?? DEFAULT_LIMIT,
+        options.maxLimit,
+      );
 
       const searchRequestParams = toSearchRequestParams({
         ...typedInput,

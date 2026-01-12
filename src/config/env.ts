@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { CONFLUENCE_HOSTING_VALUES } from "./confluenceConfig";
 
+const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_SEARCH_MAX_LIMIT = 50;
+const DEFAULT_MAX_BODY_MAX_CHARS = 20000;
+
 const envSchema = z
   .object({
     CONFLUENCE_HOSTING: z.enum(CONFLUENCE_HOSTING_VALUES),
@@ -13,25 +17,25 @@ const envSchema = z
     CONFLUENCE_API_TOKEN: z.string().min(5).optional(),
     CONFLUENCE_PERSONAL_ACCESS_TOKEN: z.string().min(5).optional(),
 
-    CONFLUENCE_SEARCH_MAX_LIMIT: z.number().min(0).optional(),
-
-    CONFLUENCE_DEFAULT_CQL: z.preprocess((v) => {
-      if (v == null) return undefined;
-      const s = String(v).trim();
-      return s === "" ? undefined : s;
-    }, z.string().min(1).max(4000).optional()),
-
     CONFLUENCE_TIMEOUT_MS: z.preprocess((v) => {
-      if (v == null || v === "") return 15000;
+      if (v == null || v === "") return DEFAULT_TIMEOUT_MS;
       const n = Number(v);
       return Number.isFinite(n) ? n : v;
-    }, z.number().int().min(1000).max(120000)),
+    }, z.number().int().default(DEFAULT_TIMEOUT_MS)),
+
+    CONFLUENCE_SEARCH_MAX_LIMIT: z.preprocess((v) => {
+      if (v == null || v === "") return DEFAULT_SEARCH_MAX_LIMIT;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : v;
+    }, z.number().int().default(DEFAULT_SEARCH_MAX_LIMIT)),
+
+    CONFLUENCE_DEFAULT_CQL: z.string().trim().default(""),
 
     CONFLUENCE_BODY_MAX_CHARS: z.preprocess((v) => {
-      if (v == null || v === "") return 20000;
+      if (v == null || v === "") return DEFAULT_MAX_BODY_MAX_CHARS;
       const n = Number(v);
       return Number.isFinite(n) ? n : v;
-    }, z.number().int().min(1000).max(200000)),
+    }, z.number().int().default(DEFAULT_MAX_BODY_MAX_CHARS)),
   })
   .superRefine((env, ctx) => {
     // PAT があるなら OK（email/token は不要）

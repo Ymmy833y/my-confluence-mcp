@@ -3,13 +3,15 @@ import {
   SearchResponseDto,
   SearchResultDto,
 } from "@core/searchTypes";
-import { SearchResponse } from "@onprem/searchResponse";
+import { SearchResponse } from "@onprem/api/searchResponse";
+import { toWebUrl } from "@utils/url";
 
 export function toSearchResponseDto(
   p: SearchRequestParams,
   r: SearchResponse,
+  baseUrl: string,
 ): SearchResponseDto {
-  const results = toSearchResultDto(r.results);
+  const results = toSearchResultDto(r.results, baseUrl);
   return {
     total: r.totalCount ?? results.length,
     start: r.start ?? p.start,
@@ -20,6 +22,7 @@ export function toSearchResponseDto(
 
 function toSearchResultDto(
   results: SearchResponse["results"],
+  baseUrl: string,
 ): SearchResultDto[] {
   return (
     results
@@ -35,7 +38,7 @@ function toSearchResultDto(
           id,
           title,
           type: r.entityType ?? r.content?.type,
-          url: r.url ?? r.resultGlobalContainer?.displayUrl,
+          url: toWebUrl(baseUrl, r.url ?? r.resultGlobalContainer?.displayUrl),
           spaceKey: r.space?.key,
           spaceName: r.space?.name,
           excerpt: r.excerpt,
