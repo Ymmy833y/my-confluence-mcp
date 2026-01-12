@@ -24,16 +24,14 @@ function createConfluenceConfig(env) {
     const auth = env.CONFLUENCE_PERSONAL_ACCESS_TOKEN
         ? exports.ConfluenceAuth.bearer(env.CONFLUENCE_PERSONAL_ACCESS_TOKEN)
         : exports.ConfluenceAuth.basic(env.CONFLUENCE_EMAIL, env.CONFLUENCE_API_TOKEN);
-    const searchMaxLimit = env.CONFLUENCE_SEARCH_MAX_LIMIT;
-    const searchDefaultCql = env.CONFLUENCE_DEFAULT_CQL?.trim();
     return {
         baseUrl,
         hosting: env.CONFLUENCE_HOSTING,
         auth,
         timeoutMs: env.CONFLUENCE_TIMEOUT_MS,
+        searchMaxLimit: env.CONFLUENCE_SEARCH_MAX_LIMIT,
+        searchDefaultCql: env.CONFLUENCE_DEFAULT_CQL,
         bodyMaxChars: env.CONFLUENCE_BODY_MAX_CHARS,
-        ...(searchMaxLimit ? { searchMaxLimit } : {}),
-        ...(searchDefaultCql ? { searchDefaultCql } : {}),
     };
 }
 
@@ -50,6 +48,9 @@ exports.loadEnv = loadEnv;
 const dotenv_1 = __nccwpck_require__(8889);
 const zod_1 = __nccwpck_require__(924);
 const confluenceConfig_1 = __nccwpck_require__(4692);
+const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_SEARCH_MAX_LIMIT = 50;
+const DEFAULT_MAX_BODY_MAX_CHARS = 20000;
 const envSchema = zod_1.z
     .object({
     CONFLUENCE_HOSTING: zod_1.z.enum(confluenceConfig_1.CONFLUENCE_HOSTING_VALUES),
@@ -57,25 +58,25 @@ const envSchema = zod_1.z
     CONFLUENCE_EMAIL: zod_1.z.string().min(3).optional(),
     CONFLUENCE_API_TOKEN: zod_1.z.string().min(5).optional(),
     CONFLUENCE_PERSONAL_ACCESS_TOKEN: zod_1.z.string().min(5).optional(),
-    CONFLUENCE_SEARCH_MAX_LIMIT: zod_1.z.number().min(0).optional(),
-    CONFLUENCE_DEFAULT_CQL: zod_1.z.preprocess((v) => {
-        if (v == null)
-            return undefined;
-        const s = String(v).trim();
-        return s === "" ? undefined : s;
-    }, zod_1.z.string().min(1).max(4000).optional()),
     CONFLUENCE_TIMEOUT_MS: zod_1.z.preprocess((v) => {
         if (v == null || v === "")
-            return 15000;
+            return DEFAULT_TIMEOUT_MS;
         const n = Number(v);
         return Number.isFinite(n) ? n : v;
-    }, zod_1.z.number().int().min(1000).max(120000)),
+    }, zod_1.z.number().int().default(DEFAULT_TIMEOUT_MS)),
+    CONFLUENCE_SEARCH_MAX_LIMIT: zod_1.z.preprocess((v) => {
+        if (v == null || v === "")
+            return DEFAULT_SEARCH_MAX_LIMIT;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : v;
+    }, zod_1.z.number().int().default(DEFAULT_SEARCH_MAX_LIMIT)),
+    CONFLUENCE_DEFAULT_CQL: zod_1.z.string().trim().default(""),
     CONFLUENCE_BODY_MAX_CHARS: zod_1.z.preprocess((v) => {
         if (v == null || v === "")
-            return 20000;
+            return DEFAULT_MAX_BODY_MAX_CHARS;
         const n = Number(v);
         return Number.isFinite(n) ? n : v;
-    }, zod_1.z.number().int().min(1000).max(200000)),
+    }, zod_1.z.number().int().default(DEFAULT_MAX_BODY_MAX_CHARS)),
 })
     .superRefine((env, ctx) => {
     // PAT があるなら OK（email/token は不要）
@@ -180,25 +181,8 @@ exports.CloudConfluenceClient = CloudConfluenceClient;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CloudGateway = void 0;
+const getContentMapper_1 = __nccwpck_require__(873);
 const searchMapper_1 = __nccwpck_require__(8491);
-function toWebUrl(baseUrl, webui) {
-    if (!webui)
-        return null;
-    // webui が "/spaces/..." みたいな相対のことがあるので baseUrl にぶら下げる
-    const base = baseUrl.replace(/\/+$/, "");
-    if (webui.startsWith("http://") || webui.startsWith("https://"))
-        return webui;
-    return `${base}${webui.startsWith("/") ? "" : "/"}${webui}`;
-}
-function pickBodyValue(rep, body) {
-    if (!body)
-        return undefined;
-    if (rep === "storage")
-        return body.storage?.value;
-    if (rep === "view")
-        return body.view?.value;
-    return body.export_view?.value;
-}
 class CloudGateway {
     client;
     baseUrl;
@@ -208,46 +192,73 @@ class CloudGateway {
     }
     async search(params) {
         const response = await this.client.searchRaw(params);
-        return (0, searchMapper_1.toSearchResponseDto)(params, response);
+        return (0, searchMapper_1.toSearchResponseDto)(params, response, this.baseUrl);
     }
     async getContent(params) {
-        const rep = params.bodyRepresentation ?? "storage";
-        const includeLabels = params.includeLabels ?? false;
-        const expandParts = ["space", "version", `body.${rep}`];
-        if (includeLabels)
+        const expandParts = [
+            "space",
+            "version",
+            `body.${params.bodyRepresentation}`,
+        ];
+        if (params.includeLabels)
             expandParts.push("metadata.labels");
-        const raw = await this.client.getContentRaw({
+        const response = await this.client.getContentRaw({
             id: params.id,
             expand: expandParts.join(","),
         });
-        const url = toWebUrl(this.baseUrl, raw._links?.webui);
-        const spaceKey = raw.space?.key;
-        const spaceName = raw.space?.name;
-        const updated = raw.version?.when;
-        const versionRaw = raw.version?.number;
-        const version = versionRaw != null ? String(versionRaw) : undefined;
-        const bodyValue = pickBodyValue(rep, raw.body);
-        const labels = raw.metadata?.labels?.results
-            ?.map((x) => x.name)
-            .filter((x) => typeof x === "string" && x.length > 0) ??
-            [];
-        const result = {
-            id: raw.id,
-            type: raw.type,
-            title: raw.title,
-            ...(raw.status ? { status: raw.status } : {}),
-            url,
-            ...(spaceKey ? { spaceKey } : {}),
-            ...(spaceName ? { spaceName } : {}),
-            ...(updated ? { updated } : {}),
-            ...(version != null ? { version } : {}),
-            ...(bodyValue ? { body: { representation: rep, value: bodyValue } } : {}),
-            ...(includeLabels ? { labels } : {}),
-        };
-        return result;
+        return (0, getContentMapper_1.toGetContentResultDto)(params, response, this.baseUrl);
     }
 }
 exports.CloudGateway = CloudGateway;
+
+
+/***/ }),
+
+/***/ 873:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.toGetContentResultDto = toGetContentResultDto;
+const url_1 = __nccwpck_require__(4008);
+function pickBodyValue(representation, body) {
+    if (!body)
+        return undefined;
+    const preferred = body[representation];
+    if (preferred?.value != null) {
+        return { representation, value: preferred.value };
+    }
+    if (body.storage?.value != null) {
+        return { representation: "storage", value: body.storage.value };
+    }
+    if (body.view?.value != null) {
+        return { representation: "view", value: body.view.value };
+    }
+    if (body.export_view?.value != null) {
+        return { representation: "export_view", value: body.export_view.value };
+    }
+    return undefined;
+}
+function toGetContentResultDto(p, r, baseUrl) {
+    const url = (0, url_1.toWebUrl)(baseUrl, r._links?.webui);
+    const body = pickBodyValue(p.bodyRepresentation, r.body);
+    return {
+        id: r.id,
+        title: r.title,
+        type: r.type,
+        ...(url != null ? { url } : {}),
+        ...(r.space?.key != null ? { spaceKey: r.space.key } : {}),
+        ...(r.space?.name != null ? { spaceName: r.space.name } : {}),
+        ...(r.version?.when != null ? { updated: r.version.when } : {}),
+        ...(r.version?.number != null ? { version: r.version.number } : {}),
+        ...(body != null ? { body } : {}),
+        labels: r.metadata?.labels?.results
+            ?.map((x) => x.name)
+            .filter((x) => typeof x === "string" && x.length > 0) ??
+            [],
+    };
+}
 
 
 /***/ }),
@@ -260,8 +271,9 @@ exports.CloudGateway = CloudGateway;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toSearchResponseDto = toSearchResponseDto;
 const logger_1 = __nccwpck_require__(8993);
-function toSearchResponseDto(p, r) {
-    const results = toSearchResultDto(r.results);
+const url_1 = __nccwpck_require__(4008);
+function toSearchResponseDto(p, r, baseUrl) {
+    const results = toSearchResultDto(r.results, baseUrl);
     return {
         total: r.totalSize ?? results.length,
         start: r.start ?? p.start,
@@ -269,7 +281,7 @@ function toSearchResponseDto(p, r) {
         results,
     };
 }
-function toSearchResultDto(results) {
+function toSearchResultDto(results, baseUrl) {
     return (results
         .map((r) => {
         const id = r.content?.id;
@@ -282,7 +294,7 @@ function toSearchResultDto(results) {
             id,
             title,
             type: r.entityType ?? r.content?.type,
-            url: r.url ?? r.resultGlobalContainer?.displayUrl,
+            url: (0, url_1.toWebUrl)(baseUrl, r.url ?? r.resultGlobalContainer?.displayUrl),
             spaceKey: r.content?.space?.key,
             spaceName: r.content?.space?.name,
             excerpt: r.excerpt,
@@ -295,15 +307,65 @@ function toSearchResultDto(results) {
 
 /***/ }),
 
+/***/ 8586:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.toGetContentResultDto = toGetContentResultDto;
+const url_1 = __nccwpck_require__(4008);
+function pickBodyValue(representation, body) {
+    if (!body)
+        return undefined;
+    const preferred = body[representation];
+    if (preferred?.value != null) {
+        return { representation, value: preferred.value };
+    }
+    if (body.storage?.value != null) {
+        return { representation: "storage", value: body.storage.value };
+    }
+    if (body.view?.value != null) {
+        return { representation: "view", value: body.view.value };
+    }
+    return undefined;
+}
+function toGetContentResultDto(p, r, baseUrl) {
+    const type = r.data?.type ?? r.type;
+    const url = (0, url_1.toWebUrl)(baseUrl, r.data?._links?.webui ?? r._links?.webui);
+    const spaceKey = r.data?.space?.key ?? r.space?.key;
+    const spaceName = r.data?.space?.name ?? r.space?.name;
+    const updated = r.data?.version?.when ?? r.version?.when;
+    const version = r.data?.version?.number ?? r.version?.number;
+    const body = pickBodyValue(p.bodyRepresentation, r.data?.body ?? r.body);
+    const labels = r.data?.metadata?.labels ?? r.metadata?.labels;
+    return {
+        id: r.data?.id ?? r.id,
+        title: r.data?.title ?? r.title ?? "",
+        ...(type != null ? { type } : {}),
+        ...(url != null ? { url } : {}),
+        ...(spaceKey != null ? { spaceKey } : {}),
+        ...(spaceName != null ? { spaceName } : {}),
+        ...(updated != null ? { updated } : {}),
+        ...(version != null ? { version } : {}),
+        ...(body != null ? { body } : {}),
+        ...(labels != null ? { labels } : {}),
+    };
+}
+
+
+/***/ }),
+
 /***/ 2079:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toSearchResponseDto = toSearchResponseDto;
-function toSearchResponseDto(p, r) {
-    const results = toSearchResultDto(r.results);
+const url_1 = __nccwpck_require__(4008);
+function toSearchResponseDto(p, r, baseUrl) {
+    const results = toSearchResultDto(r.results, baseUrl);
     return {
         total: r.totalCount ?? results.length,
         start: r.start ?? p.start,
@@ -311,7 +373,7 @@ function toSearchResponseDto(p, r) {
         results,
     };
 }
-function toSearchResultDto(results) {
+function toSearchResultDto(results, baseUrl) {
     return (results
         .map((r) => {
         const id = r.id ?? r.content?.id;
@@ -323,7 +385,7 @@ function toSearchResultDto(results) {
             id,
             title,
             type: r.entityType ?? r.content?.type,
-            url: r.url ?? r.resultGlobalContainer?.displayUrl,
+            url: (0, url_1.toWebUrl)(baseUrl, r.url ?? r.resultGlobalContainer?.displayUrl),
             spaceKey: r.space?.key,
             spaceName: r.space?.name,
             excerpt: r.excerpt,
@@ -392,24 +454,8 @@ exports.OnPremConfluenceClient = OnPremConfluenceClient;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.OnPremGateway = void 0;
+const getContentMapper_1 = __nccwpck_require__(8586);
 const searchMapper_1 = __nccwpck_require__(2079);
-function toWebUrl(baseUrl, webui) {
-    if (!webui)
-        return null;
-    const base = baseUrl.replace(/\/+$/, "");
-    if (webui.startsWith("http://") || webui.startsWith("https://"))
-        return webui;
-    return `${base}${webui.startsWith("/") ? "" : "/"}${webui}`;
-}
-function pickBodyValue(rep, body) {
-    if (!body)
-        return undefined;
-    if (rep === "storage")
-        return body.storage?.value;
-    if (rep === "view")
-        return body.view?.value;
-    return body.export_view?.value;
-}
 class OnPremGateway {
     client;
     baseUrl;
@@ -419,46 +465,21 @@ class OnPremGateway {
     }
     async search(params) {
         const response = await this.client.searchRaw(params);
-        return (0, searchMapper_1.toSearchResponseDto)(params, response);
+        return (0, searchMapper_1.toSearchResponseDto)(params, response, this.baseUrl);
     }
     async getContent(params) {
-        const rep = params.bodyRepresentation ?? "storage";
-        const includeLabels = params.includeLabels ?? false;
-        const expandParts = ["space", "version", `body.${rep}`];
-        if (includeLabels)
+        const expandParts = [
+            "space",
+            "version",
+            `body.${params.bodyRepresentation}`,
+        ];
+        if (params.includeLabels)
             expandParts.push("metadata.labels");
-        const raw = await this.client.getContentRaw({
+        const response = await this.client.getContentRaw({
             id: params.id,
             expand: expandParts.join(","),
         });
-        // data がある場合は data を優先して参照する
-        const src = raw.data ?? raw;
-        const url = toWebUrl(this.baseUrl, src._links?.webui);
-        const spaceKey = src.space?.key;
-        const spaceName = src.space?.name;
-        const updated = src.version?.when;
-        const versionRaw = src.version?.number;
-        const version = versionRaw != null ? String(versionRaw) : undefined;
-        const bodyValue = pickBodyValue(rep, src.body);
-        // onprem は metadata.labels が string[] の想定
-        // (data 側に metadata が入ってくるケースも念のため拾う)
-        const labels = (raw.data?.metadata?.labels ??
-            raw.metadata?.labels ??
-            []);
-        const result = {
-            id: src.id ?? raw.id,
-            type: src.type ?? "",
-            title: src.title ?? "",
-            ...(src.status ? { status: src.status } : {}),
-            url,
-            ...(spaceKey ? { spaceKey } : {}),
-            ...(spaceName ? { spaceName } : {}),
-            ...(updated ? { updated } : {}),
-            ...(version != null ? { version } : {}),
-            ...(bodyValue ? { body: { representation: rep, value: bodyValue } } : {}),
-            ...(includeLabels ? { labels } : {}),
-        };
-        return result;
+        return (0, getContentMapper_1.toGetContentResultDto)(params, response, this.baseUrl);
     }
 }
 exports.OnPremGateway = OnPremGateway;
@@ -519,8 +540,8 @@ const mcp_js_1 = __nccwpck_require__(3886);
 const stdio_js_1 = __nccwpck_require__(4239);
 const logger_1 = __nccwpck_require__(8993);
 const package_json_1 = __importDefault(__nccwpck_require__(8330));
-const registerGetContentTool_1 = __nccwpck_require__(7084);
-const index_1 = __nccwpck_require__(1245);
+const index_1 = __nccwpck_require__(7364);
+const index_2 = __nccwpck_require__(1245);
 async function startMcpServer(env) {
     const confluenceCfg = (0, confluenceConfig_1.createConfluenceConfig)(env);
     const confluence = (0, _confluence_1.createConfluenceGateway)(confluenceCfg);
@@ -528,12 +549,11 @@ async function startMcpServer(env) {
         name: package_json_1.default.name,
         version: package_json_1.default.version,
     });
-    (0, index_1.registerSearchTool)(server, confluence, {
+    (0, index_2.registerSearchTool)(server, confluence, {
         maxLimit: confluenceCfg.searchMaxLimit,
         defaultCql: confluenceCfg.searchDefaultCql,
     });
-    (0, registerGetContentTool_1.registerGetContentTool)(server, confluence, {
-        defaultBodyMaxChars: confluenceCfg.bodyMaxChars,
+    (0, index_1.registerGetContentTool)(server, confluence, {
         maxBodyMaxChars: confluenceCfg.bodyMaxChars,
     });
     const transport = new stdio_js_1.StdioServerTransport();
@@ -542,8 +562,9 @@ async function startMcpServer(env) {
         hosting: confluenceCfg.hosting,
         baseUrl: confluenceCfg.baseUrl,
         timeoutMs: confluenceCfg.timeoutMs,
+        maxLimit: confluenceCfg.searchMaxLimit,
+        defaultCql: confluenceCfg.searchDefaultCql,
         bodyMaxChars: confluenceCfg.bodyMaxChars,
-        defaultCql: confluenceCfg.searchDefaultCql ?? null,
         auth: confluenceCfg.auth.kind,
     })}`);
 }
@@ -551,106 +572,51 @@ async function startMcpServer(env) {
 
 /***/ }),
 
-/***/ 7084:
+/***/ 7364:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GET_CONTENT_TOOL_NAME = void 0;
 exports.registerGetContentTool = registerGetContentTool;
 const logger_1 = __nccwpck_require__(8993);
-const zod_1 = __nccwpck_require__(924);
-const inputSchema = {
-    id: zod_1.z.string().min(1).max(128),
-    representation: zod_1.z
-        .enum(["storage", "view", "export_view"])
-        .optional(),
-    includeLabels: zod_1.z.boolean().optional(),
-    bodyMaxChars: zod_1.z.number().int().min(100).max(200000).optional(),
-    asMarkdown: zod_1.z.boolean().optional(),
-};
-const outputSchema = {
-    isError: zod_1.z.boolean(),
-    content: zod_1.z
-        .object({
-        id: zod_1.z.string().min(1),
-        type: zod_1.z.string().min(1),
-        title: zod_1.z.string().min(1),
-        url: zod_1.z.url().nullable(),
-        spaceKey: zod_1.z.string().nullable(),
-        updated: zod_1.z.string().nullable(),
-        version: zod_1.z.string().nullable(),
-        body: zod_1.z
-            .object({
-            representation: zod_1.z.string(),
-            value: zod_1.z.string(),
-        })
-            .nullable(),
-        labels: zod_1.z.array(zod_1.z.string()).nullable(),
-    })
-        .optional(),
-    error: zod_1.z.string().optional(),
-};
-function clampInt(n, min, max) {
-    return Math.min(max, Math.max(min, n));
-}
-function truncateText(s, maxChars) {
-    if (s.length <= maxChars)
-        return { value: s, truncated: false };
-    return { value: s.slice(0, maxChars), truncated: true };
-}
-function toStructuredContent(r, bodyMaxChars) {
-    const body = r.body?.value != null
-        ? (() => {
-            const t = truncateText(r.body.value, bodyMaxChars);
-            return {
-                representation: r.body.representation,
-                value: t.value,
-            };
-        })()
-        : null;
-    return {
-        id: r.id,
-        type: r.type,
-        title: r.title,
-        url: r.url ?? null,
-        spaceKey: r.spaceKey ?? null,
-        updated: r.updated ?? null,
-        version: r.version ?? null,
-        body,
-        labels: r.labels ?? null,
-    };
-}
-function toMarkdown(c) {
+const mapper_1 = __nccwpck_require__(8563);
+const schema_1 = __nccwpck_require__(7925);
+exports.GET_CONTENT_TOOL_NAME = "confluence_get_content";
+const DEFAULT_BODY_MAX_CHARS = 20000;
+function toMarkdown(out) {
     const lines = [];
-    const titleLine = c.url ? `# [${c.title}](${c.url})` : `# ${c.title}`;
+    const titleLine = out.url ? `# [${out.title}](${out.url})` : `# ${out.title}`;
     lines.push(titleLine);
     lines.push("");
-    lines.push(`- id: ${c.id}`);
-    lines.push(`- type: ${c.type}`);
-    if (c.spaceKey)
-        lines.push(`- spaceKey: ${c.spaceKey}`);
-    if (c.updated)
-        lines.push(`- updated: ${c.updated}`);
-    if (c.version != null)
-        lines.push(`- version: ${c.version}`);
-    if (c.labels && c.labels.length > 0) {
-        lines.push(`- labels: ${c.labels.join(", ")}`);
+    lines.push(`- id: ${out.id}`);
+    lines.push(`- type: ${out.type}`);
+    if (out.spaceKey)
+        lines.push(`- spaceKey: ${out.spaceKey}`);
+    if (out.spaceName)
+        lines.push(`- spaceName: ${out.spaceName}`);
+    if (out.updated)
+        lines.push(`- updated: ${out.updated}`);
+    if (out.version != null)
+        lines.push(`- version: ${out.version}`);
+    if (out.labels && out.labels.length > 0) {
+        lines.push(`- labels: ${out.labels.join(", ")}`);
     }
-    if (c.body) {
+    if (out.body) {
         lines.push("");
-        lines.push(`## body (${c.body.representation})`);
+        lines.push(`## body (${out.body.representation})`);
         lines.push("");
-        lines.push("```html");
-        lines.push(c.body.value);
-        lines.push("```");
+        lines.push("````html");
+        lines.push(out.body.value);
+        lines.push("````");
     }
     return lines.join("\n");
 }
-function registerGetContentTool(server, gateway, options = {}) {
-    const defaultBodyMaxChars = options.defaultBodyMaxChars ?? 20000;
-    const maxBodyMaxChars = options.maxBodyMaxChars ?? 20000;
-    server.registerTool("confluence_get_content", {
+function registerGetContentTool(server, gateway, options) {
+    const inputSchema = schema_1.GetContentInputSchema.shape;
+    const outputSchema = schema_1.GetContentOutputSchema.shape;
+    server.registerTool(exports.GET_CONTENT_TOOL_NAME, {
         title: "Confluence Get Content",
         description: "Get a Confluence content by id and return normalized result. Read-only, with body truncation.",
         annotations: {
@@ -661,36 +627,23 @@ function registerGetContentTool(server, gateway, options = {}) {
         outputSchema,
     }, async (input, ctx) => {
         const requestId = ctx.requestId;
-        const representation = input.representation ?? "storage";
-        const includeLabels = input.includeLabels ?? false;
-        const bodyMaxChars = clampInt(input.bodyMaxChars ?? defaultBodyMaxChars, 100, maxBodyMaxChars);
+        const typedInput = input;
+        const bodyMaxChars = Math.min(input.bodyMaxChars ?? DEFAULT_BODY_MAX_CHARS, options.maxBodyMaxChars);
+        const getContentParams = (0, mapper_1.toGetContentParams)(typedInput);
         logger_1.logger.info(`tool called: ${JSON.stringify({
             tool: "confluence_get_content",
             requestId,
-            params: {
-                id: input.id,
-                representation,
-                includeLabels,
-                bodyMaxChars,
-            },
+            params: { ...typedInput, bodyMaxChars },
         })}`);
         try {
-            const result = await gateway.getContent({
-                id: input.id,
-                bodyRepresentation: representation,
-                includeLabels,
-            });
-            const structuredContent = {
-                isError: false,
-                content: toStructuredContent(result, bodyMaxChars),
-            };
-            const asMarkdown = input.asMarkdown ?? true;
-            const text = asMarkdown
-                ? toMarkdown(structuredContent.content)
-                : JSON.stringify(structuredContent, null, 2);
+            const getContentResponse = await gateway.getContent(getContentParams);
+            const out = (0, mapper_1.toToolOutput)(getContentResponse);
+            const text = typedInput.asMarkdown
+                ? toMarkdown(out.content)
+                : JSON.stringify(out, null, 2);
             return {
                 content: [{ type: "text", text }],
-                structuredContent,
+                structuredContent: out,
                 isError: false,
             };
         }
@@ -701,20 +654,103 @@ function registerGetContentTool(server, gateway, options = {}) {
                 requestId,
                 message,
             })}`);
-            const structuredContent = {
-                isError: true,
-                error: message,
-            };
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(structuredContent, null, 2) },
+                    {
+                        type: "text",
+                        text: JSON.stringify({ isError: true, error: message }, null, 2),
+                    },
                 ],
-                structuredContent,
                 isError: true,
             };
         }
     });
 }
+
+
+/***/ }),
+
+/***/ 8563:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.toGetContentParams = toGetContentParams;
+exports.toToolOutput = toToolOutput;
+function toGetContentParams(input) {
+    return {
+        id: input.id,
+        bodyRepresentation: input.representation,
+        includeLabels: input.includeLabels,
+    };
+}
+function toToolOutput(response) {
+    const body = response.body?.value
+        ? { representation: response.body.value, value: response.body.value }
+        : null;
+    return {
+        content: {
+            id: response.id,
+            title: response.title,
+            type: response.type ?? null,
+            url: response.url ?? null,
+            spaceKey: response.spaceKey ?? null,
+            spaceName: response.spaceName ?? null,
+            updated: response.updated ?? null,
+            version: response.version ?? null,
+            body,
+            labels: response.labels ?? null,
+        },
+    };
+}
+
+
+/***/ }),
+
+/***/ 7925:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GetContentOutputSchema = exports.GetContentSchema = exports.GetContentInputSchema = void 0;
+const zod_1 = __nccwpck_require__(924);
+exports.GetContentInputSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1).max(128),
+    representation: zod_1.z
+        .enum(["storage", "view", "export_view"])
+        .default("storage"),
+    includeLabels: zod_1.z.boolean().default(false),
+    bodyMaxChars: zod_1.z.number().int().optional(),
+    asMarkdown: zod_1.z.boolean().optional(),
+})
+    .strict();
+exports.GetContentSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1),
+    title: zod_1.z.string().min(1),
+    type: zod_1.z.string().min(1).nullable(),
+    url: zod_1.z.url().nullable(),
+    spaceKey: zod_1.z.string().min(1).nullable(),
+    spaceName: zod_1.z.string().min(1).nullable(),
+    updated: zod_1.z.string().nullable(),
+    version: zod_1.z.union([zod_1.z.string(), zod_1.z.number()]).nullable(),
+    body: zod_1.z
+        .object({
+        representation: zod_1.z.string(),
+        value: zod_1.z.string(),
+    })
+        .nullable(),
+    labels: zod_1.z.array(zod_1.z.string()).nullable(),
+})
+    .optional();
+exports.GetContentOutputSchema = zod_1.z
+    .object({
+    content: exports.GetContentSchema,
+})
+    .strict();
 
 
 /***/ }),
@@ -732,7 +768,6 @@ const mapper_1 = __nccwpck_require__(3316);
 const schema_1 = __nccwpck_require__(234);
 exports.SEARCH_TOOL_NAME = "confluence_search";
 const DEFAULT_LIMIT = 10;
-const MAX_LIMIT = 50;
 function mergeCql(inputCql, defaultCql) {
     if (!defaultCql) {
         return inputCql;
@@ -769,10 +804,7 @@ function toMarkdown(out) {
     }
     return lines.join("\n");
 }
-function registerSearchTool(server, gateway, options = {}) {
-    const defaultLimit = DEFAULT_LIMIT;
-    const maxLimit = options.maxLimit ?? MAX_LIMIT;
-    const defaultCql = options.defaultCql?.trim();
+function registerSearchTool(server, gateway, options) {
     const inputSchema = schema_1.SearchInputSchema.shape;
     const outputSchema = schema_1.SearchOutputSchema.shape;
     server.registerTool(exports.SEARCH_TOOL_NAME, {
@@ -787,8 +819,8 @@ function registerSearchTool(server, gateway, options = {}) {
     }, async (input, ctx) => {
         const requestId = ctx.requestId;
         const typedInput = input;
-        const cql = mergeCql(typedInput.cql, defaultCql);
-        const limit = clampInt(typedInput.limit ?? defaultLimit, maxLimit);
+        const cql = mergeCql(typedInput.cql, options.defaultCql);
+        const limit = clampInt(typedInput.limit ?? DEFAULT_LIMIT, options.maxLimit);
         const searchRequestParams = (0, mapper_1.toSearchRequestParams)({
             ...typedInput,
             cql,
@@ -894,8 +926,8 @@ exports.SearchOutputSchema = exports.SearchResultSchema = exports.SearchInputSch
 const zod_1 = __nccwpck_require__(924);
 exports.SearchInputSchema = zod_1.z
     .object({
-    cql: zod_1.z.string().min(1).max(4000),
-    limit: zod_1.z.number().int().min(1).max(50).default(10),
+    cql: zod_1.z.string().min(1),
+    limit: zod_1.z.number().int().min(1),
     start: zod_1.z.number().int().min(0).default(0),
     asMarkdown: zod_1.z.boolean().default(true),
 })
@@ -905,7 +937,7 @@ exports.SearchResultSchema = zod_1.z
     id: zod_1.z.string().min(1),
     title: zod_1.z.string().min(1),
     type: zod_1.z.string().min(1).nullable(), // "page" | "blogpost" | "attachment" など
-    url: zod_1.z.string().min(1).nullable(),
+    url: zod_1.z.url().nullable(),
     spaceKey: zod_1.z.string().min(1).nullable(),
     spaceName: zod_1.z.string().min(1).nullable(),
     excerpt: zod_1.z.string().nullable(),
@@ -1044,6 +1076,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ensureNoTrailingSlash = ensureNoTrailingSlash;
 exports.joinUrl = joinUrl;
 exports.joinUrlWithExpand = joinUrlWithExpand;
+exports.toWebUrl = toWebUrl;
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, "");
 }
@@ -1056,6 +1089,14 @@ function joinUrlWithExpand(base, path, expand) {
         url.searchParams.set("expand", expand);
     }
     return url.toString();
+}
+function toWebUrl(baseUrl, webui) {
+    if (!webui)
+        return undefined;
+    if (/^https?:\/\//i.test(webui))
+        return webui;
+    const base = baseUrl.replace(/\/+$/, "") + "/";
+    return new URL(webui.replace(/^\/+/, ""), base).toString();
 }
 
 
