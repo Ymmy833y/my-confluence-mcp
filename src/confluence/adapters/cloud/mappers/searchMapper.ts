@@ -1,16 +1,18 @@
-import { SearchResponse } from "@cloud/searchResponse";
+import { SearchResponse } from "@cloud/api/searchResponse";
 import {
   SearchRequestParams,
   SearchResponseDto,
   SearchResultDto,
 } from "@core/searchTypes";
 import { logger } from "@utils/logger";
+import { toWebUrl } from "@utils/url";
 
 export function toSearchResponseDto(
   p: SearchRequestParams,
   r: SearchResponse,
+  baseUrl: string,
 ): SearchResponseDto {
-  const results = toSearchResultDto(r.results);
+  const results = toSearchResultDto(r.results, baseUrl);
   return {
     total: r.totalSize ?? results.length,
     start: r.start ?? p.start,
@@ -21,6 +23,7 @@ export function toSearchResponseDto(
 
 function toSearchResultDto(
   results: SearchResponse["results"],
+  baseUrl: string,
 ): SearchResultDto[] {
   return (
     results
@@ -39,7 +42,7 @@ function toSearchResultDto(
           id,
           title,
           type: r.entityType ?? r.content?.type,
-          url: r.url ?? r.resultGlobalContainer?.displayUrl,
+          url: toWebUrl(baseUrl, r.url ?? r.resultGlobalContainer?.displayUrl),
           spaceKey: r.content?.space?.key,
           spaceName: r.content?.space?.name,
           excerpt: r.excerpt,

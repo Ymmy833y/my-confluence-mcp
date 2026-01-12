@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const SearchInputSchema = z
   .object({
-    cql: z.string().min(1).max(4000),
-    limit: z.number().int().min(1).max(50).default(10),
+    cql: z.string().min(1),
+    limit: z.number().int().min(1),
     start: z.number().int().min(0).default(0),
     asMarkdown: z.boolean().default(true),
   })
@@ -15,7 +15,7 @@ export const SearchResultSchema = z
     title: z.string().min(1),
 
     type: z.string().min(1).nullable(), // "page" | "blogpost" | "attachment" など
-    url: z.string().min(1).nullable(),
+    url: z.url().nullable(),
 
     spaceKey: z.string().min(1).nullable(),
     spaceName: z.string().min(1).nullable(),

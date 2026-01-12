@@ -35,6 +35,11 @@ export interface GetContentResponse {
       value?: string;
       representation?: string;
     };
+
+    export_view?: {
+      value?: string;
+      representation?: string;
+    };
   };
 
   metadata?: {
@@ -82,6 +87,12 @@ export interface GetContentResponse {
         representation?: string;
       };
     };
+
+    metadata?: {
+      labels?: string[];
+      [key: string]: unknown;
+    };
+
     _links?: {
       base?: string;
       context?: string;
