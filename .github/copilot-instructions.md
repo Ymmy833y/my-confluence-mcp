@@ -1,8 +1,8 @@
-# my-confluence-mcp CodeX Agent ガイド
+# my-confluence-mcp GitHub copilot ガイド
 
 ## 0. 目的（このファイルの役割）
 
-* Codex（および類似のコーディングエージェント）が **my-confluence-mcp の規約・設計・変更方針** を毎回同じ前提で理解できるようにする。
+* GitHub copilot が **my-confluence-mcp の規約・設計・変更方針** を毎回同じ前提で理解できるようにする。
 * 迷ったら「既存コードの流儀に寄せる」。不確かな点は **リポジトリ内の実装を探索** し、判断が必要ならユーザーに確認する。
 * 本プロジェクトは **Confluence（Cloud / On-Prem）両対応の MCP サーバー**であり、**hosting 差分（レスポンス差分など）を adapters 層に閉じ込める**。
 
@@ -358,7 +358,7 @@ npm test
 
 ---
 
-## 9. まとめ（Codex向けチェックリスト）
+## 9. まとめ（GitHub copilot 向けチェックリスト）
 
 * Read-only を維持しているか（書き込み系を混ぜていないか）
 * hosting 差分（cloud/onprem）を adapters に閉じ込めているか
