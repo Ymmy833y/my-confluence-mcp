@@ -17,7 +17,7 @@
   - 公式: https://developer.atlassian.com/cloud/confluence/basic-auth-for-rest-apis/
   - API token の管理: https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/
 
-※Cloud には、オンプレの PAT と同等の「Confluence の PAT」を前提とした説明は基本的に出てきません（Cloud でのスクリプト用途は API token を使うのが標準）。
+※ Cloud には、オンプレの PAT と同等の「Confluence の PAT」を前提とした説明は基本的に出てきません（Cloud でのスクリプト用途は API token を使うのが標準）。
 
 ---
 
@@ -37,3 +37,8 @@
   - 公式: https://confluence.atlassian.com/enterprise/using-personal-access-tokens-1026032365.html
 
 ※オンプレの PAT と、Cloud の API token は **別物** です（作成場所・用途・ヘッダー形式が異なります）。
+
+## CQL
+CQL およびフィールド値は公式リファレンスを参照してください。
+- Cloud: https://developer.atlassian.com/cloud/confluence/cql-fields/
+- Onprem: https://developer.atlassian.com/server/confluence/cql-field-referen
