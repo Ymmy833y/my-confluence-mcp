@@ -60,8 +60,16 @@ const envSchema = z
 
 export type Env = z.infer<typeof envSchema>;
 
+/**
+ * 実行環境に応じて読み込む .env ファイルを切り替えつつ、環境変数をスキーマ検証して型安全に扱える状態にする
+ *
+ * @param options 読み込む .env ファイルのパスを指定するためのオプションを渡す
+ * @returns スキーマ検証に成功した環境変数を返す
+ * @throws 環境変数がスキーマ検証に失敗した場合に、失敗理由をまとめて例外を投げる
+ */
 export function loadEnv(options?: { path?: string }): Env {
   if (options?.path) {
+    // デプロイ先や実行モードごとに設定ファイルを切り替えられるよう、明示指定がある場合は優先して読み込む
     dotenvConfig({ path: options.path });
   } else {
     dotenvConfig();
@@ -69,6 +77,7 @@ export function loadEnv(options?: { path?: string }): Env {
 
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
+    // 起動時に不足・誤設定を一括で発見できるよう、全エラーを収集して診断しやすいメッセージに整形する
     const msg = parsed.error.issues.map(
       (e) => `${e.path.join(".")}: ${e.message}`,
     );

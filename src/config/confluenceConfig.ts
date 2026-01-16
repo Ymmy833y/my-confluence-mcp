@@ -1,3 +1,5 @@
+import { ensureNoTrailingSlash } from "@utils/url";
+
 import type { Env } from "./env";
 
 export const CONFLUENCE_HOSTING_VALUES = ["cloud", "onprem"] as const;
@@ -25,12 +27,14 @@ export interface ConfluenceConfig {
 
 export const ConfluenceConfig = {} as const;
 
-function stripTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
-}
-
+/**
+ * 環境変数から Confluence 接続設定を生成し、入力の揺れや認証方式の分岐を設定側で吸収する
+ *
+ * @param env 設定生成に必要な環境変数を受け取る
+ * @returns Confluence への接続設定を返す
+ */
 export function createConfluenceConfig(env: Env): ConfluenceConfig {
-  const baseUrl = stripTrailingSlash(env.CONFLUENCE_BASE_URL);
+  const baseUrl = ensureNoTrailingSlash(env.CONFLUENCE_BASE_URL);
 
   // env.tsのsuperRefineで成立が保証される前提（PAT優先）
   const auth: ConfluenceAuth = env.CONFLUENCE_PERSONAL_ACCESS_TOKEN
