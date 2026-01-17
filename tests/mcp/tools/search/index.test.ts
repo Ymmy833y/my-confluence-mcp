@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod";
 
 vi.mock("@utils/logger");
 
@@ -92,11 +93,13 @@ describe("mcp/tools/search/index", () => {
       page: { total: 1, start: 0, limit: 50 },
     };
 
-    expect(actual).toEqual({
-      content: [{ type: "text", text: JSON.stringify(out, null, 2) }],
-      structuredContent: out,
-      isError: false,
-    });
+    expect(actual.isError).toBe(false);
+    expect(actual.structuredContent).toEqual(out);
+    expect(actual.content).toHaveLength(1);
+    expect(actual.content[0]?.type).toBe("text");
+
+    const parsedText = JSON.parse(actual.content[0]?.text ?? "{}");
+    expect(parsedText).toEqual(out);
   });
 
   it("正常系: asMarkdown=true のとき Markdown 形式で返す", async () => {
@@ -170,7 +173,42 @@ describe("mcp/tools/search/index", () => {
     });
   });
 
-  it("異常系: gateway.search が失敗したら isError=true で fallback を返す", async () => {
+  it("異常系: 出力のスキーマ検証が失敗した場合 isError=true を返す", async () => {
+    // Arrange
+    const mod = await import("@mcp/tools/search/index.js");
+    const schemaMod = await import("@mcp/tools/search/schema.js");
+    const { logger } = await import("@utils/logger.js");
+
+    const server = { registerTool: vi.fn() } as any;
+    const gateway = {
+      search: vi.fn().mockResolvedValue({
+        total: 1,
+        start: 0,
+        limit: 10,
+        results: [],
+      }),
+    } as any;
+
+    vi.spyOn(schemaMod.SearchOutputSchema, "parse").mockImplementation(() => {
+      throw new ZodError([]);
+    });
+
+    mod.registerSearchTool(server, gateway, { maxLimit: 50, defaultCql: "" });
+    const handler = (server.registerTool as any).mock.calls[0][2];
+
+    // Act
+    const actual = await handler(
+      { cql: "type=page", limit: 10, start: 0, asMarkdown: false },
+      { requestId: "req-3" },
+    );
+
+    // Assert
+    expect(actual.isError).toBe(true);
+    expect(actual.content[0]?.text).toContain("Tool output validation failed");
+    expect(logger.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("異常系: gateway.search が失敗したら isError=true を返す", async () => {
     // Arrange
     const mod = await import("@mcp/tools/search/index.js");
     const { logger } = await import("@utils/logger.js");
@@ -189,7 +227,7 @@ describe("mcp/tools/search/index", () => {
     // Act
     const actual = await handler(
       { cql: "type=page", limit: 100, start: 20, asMarkdown: false },
-      { requestId: "req-3" },
+      { requestId: "req-4" },
     );
 
     // Assert
@@ -209,10 +247,6 @@ describe("mcp/tools/search/index", () => {
           text: JSON.stringify({ isError: true, error: "boom" }, null, 2),
         },
       ],
-      structuredContent: {
-        results: [],
-        page: { total: 0, start: 20, limit: 5 },
-      },
       isError: true,
     });
   });

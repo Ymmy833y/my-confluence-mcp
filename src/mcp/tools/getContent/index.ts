@@ -1,6 +1,7 @@
 import { ConfluenceGateway } from "@core/confluenceGateway";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { logger } from "@utils/logger";
+import { ZodError } from "zod";
 
 import { toGetContentParams, toToolOutput } from "./mapper";
 import { GetContentInputSchema, GetContentOutputSchema } from "./schema";
@@ -104,18 +105,41 @@ export function registerGetContentTool(
         const getContentResponse = await gateway.getContent(getContentParams);
 
         const out = toToolOutput(getContentResponse) satisfies GetContentOutput;
+        const parsedOut = GetContentOutputSchema.parse(out);
 
         // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
         const text = typedInput.asMarkdown
-          ? toMarkdown(out.content!)
-          : JSON.stringify(out, null, 2);
+          ? toMarkdown(parsedOut.content)
+          : JSON.stringify(parsedOut, null, 2);
 
         return {
           content: [{ type: "text", text }],
-          structuredContent: out,
+          structuredContent: parsedOut,
           isError: false,
         };
       } catch (err: unknown) {
+        if (err instanceof ZodError) {
+          logger.error(
+            `tool output validation error: ${JSON.stringify({
+              tool: GET_CONTENT_TOOL_NAME,
+              requestId,
+              issues: err.issues,
+            })}`,
+          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  { isError: true, error: "Tool output validation failed" },
+                  null,
+                  2,
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
         // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
         const message = err instanceof Error ? err.message : String(err);
 

@@ -11,7 +11,7 @@ export const GetContentInputSchema = z
       .default("storage"),
     includeLabels: z.boolean().default(false),
     bodyMaxChars: z.number().int().optional(),
-    asMarkdown: z.boolean().optional(),
+    asMarkdown: z.boolean().default(true),
   })
   .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 
@@ -42,7 +42,7 @@ export const GetContentSchema = z
 
     labels: z.array(z.string()).nullable(),
   })
-  .optional(); // 未取得時のレスポンスを区別できるようにする
+  .strict(); // 期待しない出力を拒否して境界の不整合を早期検知する
 
 /**
  * Confluence のコンテンツ取得出力を厳密に検証するためのスキーマを定義する
