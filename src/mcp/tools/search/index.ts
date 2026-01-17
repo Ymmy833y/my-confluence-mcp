@@ -15,6 +15,14 @@ export type RegisterSearchToolOptions = {
   defaultCql: string;
 };
 
+/**
+ * デフォルトCQLを追加しつつ ORDER BY の位置を維持して検索結果の意図しない並び替えを避ける
+ * ORDER BY を後段に残すことで追加条件がソート句を壊さないようにする
+ *
+ * @param inputCql 入力されたCQL
+ * @param defaultCql 既定で付与するCQL
+ * @returns 結合後のCQL
+ */
 function mergeCql(inputCql: string, defaultCql?: string) {
   if (!defaultCql) {
     return inputCql;
@@ -35,10 +43,13 @@ function mergeCql(inputCql: string, defaultCql?: string) {
   return `${mergedMain} ${orderBy}`.trim();
 }
 
-function clampInt(defaultLimit: number, maxLimit: number): number {
-  return Math.min(defaultLimit, maxLimit);
-}
-
+/**
+ * ツール出力を人が読みやすい Markdown 形式に整形する
+ * 検索結果をリンク付き箇条書きにしてモデルやユーザーの参照コストを下げる
+ *
+ * @param out ツール出力
+ * @returns Markdown 文字列
+ */
 function toMarkdown(out: SearchToolOutput): string {
   const lines: string[] = [];
   lines.push(`total size: ${out.page.total}`);
@@ -56,6 +67,14 @@ function toMarkdown(out: SearchToolOutput): string {
   return lines.join("\n");
 }
 
+/**
+ * Confluence の検索ツールをサーバに登録する
+ * リミット上限と既定CQLを強制して意図しない高負荷検索やスコープ逸脱を避ける
+ *
+ * @param server MCP サーバ
+ * @param gateway Confluence 検索ゲートウェイ
+ * @param options 登録オプション
+ */
 export function registerSearchTool(
   server: McpServer,
   gateway: ConfluenceGateway,
@@ -83,7 +102,8 @@ export function registerSearchTool(
 
       const cql = mergeCql(typedInput.cql, options.defaultCql);
 
-      const limit = clampInt(
+      // 既定値と上限値からリミットを確定して過大な取得要求を抑止する
+      const limit = Math.min(
         typedInput.limit ?? DEFAULT_LIMIT,
         options.maxLimit,
       );
@@ -108,6 +128,7 @@ export function registerSearchTool(
 
         const out = toToolOutput(searchResponse) satisfies SearchToolOutput;
 
+        // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
         const text = typedInput.asMarkdown
           ? toMarkdown(out)
           : JSON.stringify(out, null, 2);
@@ -118,6 +139,7 @@ export function registerSearchTool(
           isError: false,
         };
       } catch (err: unknown) {
+        // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
         const message = err instanceof Error ? err.message : String(err);
 
         logger.error(
