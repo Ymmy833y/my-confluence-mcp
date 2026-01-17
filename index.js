@@ -1,25 +1,29 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 4692:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ 5189:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ConfluenceConfig = exports.ConfluenceAuth = exports.CONFLUENCE_HOSTING_VALUES = void 0;
 exports.createConfluenceConfig = createConfluenceConfig;
+const url_1 = __nccwpck_require__(2761);
 exports.CONFLUENCE_HOSTING_VALUES = ["cloud", "onprem"];
 exports.ConfluenceAuth = {
     bearer: (token) => ({ kind: "bearer", token }),
     basic: (email, apiToken) => ({ kind: "basic", email, apiToken }),
 };
 exports.ConfluenceConfig = {};
-function stripTrailingSlash(url) {
-    return url.replace(/\/+$/, "");
-}
+/**
+ * 環境変数から Confluence 接続設定を生成し、入力の揺れや認証方式の分岐を設定側で吸収する
+ *
+ * @param env 設定生成に必要な環境変数を受け取る
+ * @returns Confluence への接続設定を返す
+ */
 function createConfluenceConfig(env) {
-    const baseUrl = stripTrailingSlash(env.CONFLUENCE_BASE_URL);
+    const baseUrl = (0, url_1.ensureNoTrailingSlash)(env.CONFLUENCE_BASE_URL);
     // env.tsのsuperRefineで成立が保証される前提（PAT優先）
     const auth = env.CONFLUENCE_PERSONAL_ACCESS_TOKEN
         ? exports.ConfluenceAuth.bearer(env.CONFLUENCE_PERSONAL_ACCESS_TOKEN)
@@ -38,7 +42,7 @@ function createConfluenceConfig(env) {
 
 /***/ }),
 
-/***/ 9461:
+/***/ 810:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -47,7 +51,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.loadEnv = loadEnv;
 const dotenv_1 = __nccwpck_require__(8889);
 const zod_1 = __nccwpck_require__(924);
-const confluenceConfig_1 = __nccwpck_require__(4692);
+const confluenceConfig_1 = __nccwpck_require__(5189);
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_SEARCH_MAX_LIMIT = 50;
 const DEFAULT_MAX_BODY_MAX_CHARS = 20000;
@@ -98,8 +102,16 @@ const envSchema = zod_1.z
         });
     }
 });
+/**
+ * 実行環境に応じて読み込む .env ファイルを切り替えつつ、環境変数をスキーマ検証して型安全に扱える状態にする
+ *
+ * @param options 読み込む .env ファイルのパスを指定するためのオプションを渡す
+ * @returns スキーマ検証に成功した環境変数を返す
+ * @throws 環境変数がスキーマ検証に失敗した場合に、失敗理由をまとめて例外を投げる
+ */
 function loadEnv(options) {
     if (options?.path) {
+        // デプロイ先や実行モードごとに設定ファイルを切り替えられるよう、明示指定がある場合は優先して読み込む
         (0, dotenv_1.config)({ path: options.path });
     }
     else {
@@ -107,6 +119,7 @@ function loadEnv(options) {
     }
     const parsed = envSchema.safeParse(process.env);
     if (!parsed.success) {
+        // 起動時に不足・誤設定を一括で発見できるよう、全エラーを収集して診断しやすいメッセージに整形する
         const msg = parsed.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`);
         throw new Error(`Invalid environment variables: ${msg}`);
     }
@@ -116,18 +129,24 @@ function loadEnv(options) {
 
 /***/ }),
 
-/***/ 3905:
+/***/ 3132:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CloudConfluenceClient = void 0;
-const auth_1 = __nccwpck_require__(5367);
-const http_1 = __nccwpck_require__(9677);
-const url_1 = __nccwpck_require__(4008);
-// Cloud は baseUrl が https://xxx.atlassian.net/wiki のことも、https://xxx.atlassian.net のこともあるので補正
+const auth_1 = __nccwpck_require__(9156);
+const http_1 = __nccwpck_require__(238);
+const url_1 = __nccwpck_require__(2761);
+/**
+ * Cloud 環境で baseUrl に /wiki が付与されない設定にも対応するため URL 形を統一する
+ *
+ * @param baseUrl Confluence Cloud の baseUrl を受け取る
+ * @returns /wiki を含む baseUrl を返す
+ */
 function cloudWikiBase(baseUrl) {
+    // 設定値の揺れによる URL 二重スラッシュや /wiki 重複を避けて API の組み立てを安定させる
     const b = (0, url_1.ensureNoTrailingSlash)(baseUrl);
     return b.endsWith("/wiki") ? b : `${b}/wiki`;
 }
@@ -137,11 +156,16 @@ class CloudConfluenceClient {
         this.cfg = cfg;
     }
     /**
-     * Cloud: 例) /wiki/rest/api/search?cql=...&limit=...&start=...
+     * Cloud の search API を呼び出すための URL と認証ヘッダを組み立てて取得する
+     *
+     * @param params cql とページング情報を受け取る
+     * @returns 検索結果を返す
+     * @throws fetchJson が送出する例外をそのまま送出する
      */
     async searchRaw(params) {
         const base = cloudWikiBase(this.cfg.baseUrl);
         const url = new URL((0, url_1.joinUrl)(base, "/rest/api/search"));
+        // URLSearchParams を使いクエリのエンコード漏れを防ぎ CQL に特殊文字が含まれても安全に送る
         url.searchParams.set("cql", params.cql);
         url.searchParams.set("limit", String(params.limit));
         url.searchParams.set("start", String(params.start));
@@ -154,10 +178,15 @@ class CloudConfluenceClient {
         }, this.cfg.timeoutMs);
     }
     /**
-     * Cloud: 例) /wiki/rest/api/content/{id}?expand=space,version,body.storage
+     * Cloud の content API を呼び出すための URL と認証ヘッダを組み立てて取得する
+     *
+     * @param params id と expand を受け取る
+     * @returns コンテンツ取得結果を返す
+     * @throws fetchJson が送出する例外をそのまま送出する
      */
     async getContentRaw(params) {
         const base = cloudWikiBase(this.cfg.baseUrl);
+        // パスパラメータ由来の予約文字混入でパス解釈が壊れるのを防ぐ
         const encodedId = encodeURIComponent(params.id);
         const url = new URL((0, url_1.joinUrlWithExpand)(base, `/rest/api/content/${encodedId}`, params.expand));
         return (0, http_1.fetchJson)(url.toString(), {
@@ -174,15 +203,15 @@ exports.CloudConfluenceClient = CloudConfluenceClient;
 
 /***/ }),
 
-/***/ 1876:
+/***/ 1843:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CloudGateway = void 0;
-const getContentMapper_1 = __nccwpck_require__(873);
-const searchMapper_1 = __nccwpck_require__(8491);
+const getContentMapper_1 = __nccwpck_require__(5373);
+const searchMapper_1 = __nccwpck_require__(948);
 class CloudGateway {
     client;
     baseUrl;
@@ -190,16 +219,31 @@ class CloudGateway {
         this.client = client;
         this.baseUrl = baseUrl;
     }
+    /**
+     * Confluence Cloud の検索結果を取得してドメイン向けの形式に変換して返す
+     * 呼び出し側の検索条件と整合するページ情報に揃えるために変換処理を挟む
+     *
+     * @param params 検索条件
+     * @returns 検索結果
+     */
     async search(params) {
         const response = await this.client.searchRaw(params);
         return (0, searchMapper_1.toSearchResponseDto)(params, response, this.baseUrl);
     }
+    /**
+     * Confluence Cloud のコンテンツを取得してドメイン向けの形式に変換して返す
+     * 必要な情報だけを取得してレスポンスサイズと取得コストを抑えるために expand を組み立てる
+     *
+     * @param params 取得条件
+     * @returns コンテンツ
+     */
     async getContent(params) {
         const expandParts = [
             "space",
             "version",
             `body.${params.bodyRepresentation}`,
         ];
+        // ラベルが不要なケースで無駄な展開を避けるために指定がある場合のみ expand に含める
         if (params.includeLabels)
             expandParts.push("metadata.labels");
         const response = await this.client.getContentRaw({
@@ -214,14 +258,21 @@ exports.CloudGateway = CloudGateway;
 
 /***/ }),
 
-/***/ 873:
+/***/ 5373:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toGetContentResultDto = toGetContentResultDto;
-const url_1 = __nccwpck_require__(4008);
+const url_1 = __nccwpck_require__(2761);
+/**
+ * 指定した representation が無い場合でも本文を返す必要があるため代替順序を設けて値を選択する
+ *
+ * @param representation 優先して取得したい本文の表現形式
+ * @param body APIレスポンスに含まれる本文オブジェクト
+ * @returns 選択された表現形式と本文のペアを返す 取得できない場合は undefined を返す
+ */
 function pickBodyValue(representation, body) {
     if (!body)
         return undefined;
@@ -229,17 +280,28 @@ function pickBodyValue(representation, body) {
     if (preferred?.value != null) {
         return { representation, value: preferred.value };
     }
+    // 呼び出し側が期待する representation が無い場合でも表示可能な本文を返すため storage を優先する
     if (body.storage?.value != null) {
         return { representation: "storage", value: body.storage.value };
     }
+    // storage が無い場合に UI 表示へ近い内容を返すため view を次点とする
     if (body.view?.value != null) {
         return { representation: "view", value: body.view.value };
     }
+    // 最後の手段として書き出し用表現を採用して本文欠落を避ける
     if (body.export_view?.value != null) {
         return { representation: "export_view", value: body.export_view.value };
     }
     return undefined;
 }
+/**
+ * 欠落しがちなフィールドを許容しつつ必要な情報だけを返すため DTO に変換する
+ *
+ * @param p 取得条件
+ * @param r APIレスポンス
+ * @param baseUrl WebURL 生成に使うベースURL
+ * @returns 取得結果DTOを返す
+ */
 function toGetContentResultDto(p, r, baseUrl) {
     const url = (0, url_1.toWebUrl)(baseUrl, r._links?.webui);
     const body = pickBodyValue(p.bodyRepresentation, r.body);
@@ -254,6 +316,7 @@ function toGetContentResultDto(p, r, baseUrl) {
         ...(r.version?.number != null ? { version: r.version.number } : {}),
         ...(body != null ? { body } : {}),
         labels: r.metadata?.labels?.results
+            // 不正なデータ混入によりラベル処理全体が崩れるのを避けるため文字列のみを採用する
             ?.map((x) => x.name)
             .filter((x) => typeof x === "string" && x.length > 0) ??
             [],
@@ -263,15 +326,24 @@ function toGetContentResultDto(p, r, baseUrl) {
 
 /***/ }),
 
-/***/ 8491:
+/***/ 948:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toSearchResponseDto = toSearchResponseDto;
-const logger_1 = __nccwpck_require__(8993);
-const url_1 = __nccwpck_require__(4008);
+const logger_1 = __nccwpck_require__(2006);
+const url_1 = __nccwpck_require__(2761);
+/**
+ * SearchResponse を API 利用側の DTO に変換する
+ * API の欠損値があってもリクエスト値や実データから妥当な値を補完する
+ *
+ * @param p 検索リクエストパラメータ
+ * @param r 検索レスポンス
+ * @param baseUrl Web URL 生成に使うベース URL
+ * @returns DTO 形式の検索レスポンス
+ */
 function toSearchResponseDto(p, r, baseUrl) {
     const results = toSearchResultDto(r.results, baseUrl);
     return {
@@ -281,12 +353,21 @@ function toSearchResponseDto(p, r, baseUrl) {
         results,
     };
 }
+/**
+ * 検索結果一覧を DTO 配列に変換する
+ * 必須項目が欠ける要素は後続処理を壊さないために除外する
+ *
+ * @param results 検索結果の配列
+ * @param baseUrl Web URL 生成に使うベース URL
+ * @returns DTO 形式の検索結果配列
+ */
 function toSearchResultDto(results, baseUrl) {
     return (results
         .map((r) => {
         const id = r.content?.id;
         const title = r.title ?? r.content?.title;
         if (!id || !title) {
+            // 不完全なデータを混ぜると利用側で例外や表示崩れを起こしやすいため除外する
             logger_1.logger.warn(`Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`);
             return null;
         }
@@ -301,20 +382,28 @@ function toSearchResultDto(results, baseUrl) {
             lastModified: r.lastModified,
         };
     })
+        // null を残すと返却型が不安定になり利用側の分岐が増えるためここで確定的に除去する
         .filter((x) => x !== null) ?? []);
 }
 
 
 /***/ }),
 
-/***/ 8586:
+/***/ 3219:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toGetContentResultDto = toGetContentResultDto;
-const url_1 = __nccwpck_require__(4008);
+const url_1 = __nccwpck_require__(2761);
+/**
+ * 指定した representation が無い場合でも本文を返す必要があるため代替順序を設けて値を選択する
+ *
+ * @param representation 優先して取得したい本文の表現形式
+ * @param body APIレスポンスに含まれる本文オブジェクト
+ * @returns 選択された表現形式と本文のペアを返す 取得できない場合は undefined を返す
+ */
 function pickBodyValue(representation, body) {
     if (!body)
         return undefined;
@@ -322,14 +411,24 @@ function pickBodyValue(representation, body) {
     if (preferred?.value != null) {
         return { representation, value: preferred.value };
     }
+    // 指定表現が欠落していても互換性を保つため storage を先に採用する
     if (body.storage?.value != null) {
         return { representation: "storage", value: body.storage.value };
     }
+    // storage も無いケースに備えて最終フォールバックとして view を採用する
     if (body.view?.value != null) {
         return { representation: "view", value: body.view.value };
     }
     return undefined;
 }
+/**
+ * 欠落しがちなフィールドを許容しつつ必要な情報だけを返すため DTO に変換する
+ *
+ * @param p 取得条件
+ * @param r APIレスポンス
+ * @param baseUrl WebURL 生成に使うベースURL
+ * @returns 取得結果DTOを返す
+ */
 function toGetContentResultDto(p, r, baseUrl) {
     const type = r.data?.type ?? r.type;
     const url = (0, url_1.toWebUrl)(baseUrl, r.data?._links?.webui ?? r._links?.webui);
@@ -356,14 +455,24 @@ function toGetContentResultDto(p, r, baseUrl) {
 
 /***/ }),
 
-/***/ 2079:
+/***/ 2450:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toSearchResponseDto = toSearchResponseDto;
-const url_1 = __nccwpck_require__(4008);
+const logger_1 = __nccwpck_require__(2006);
+const url_1 = __nccwpck_require__(2761);
+/**
+ * SearchResponse を API 利用側の DTO に変換する
+ * API の欠損値があってもリクエスト値や実データから妥当な値を補完する
+ *
+ * @param p 検索リクエストパラメータ
+ * @param r 検索レスポンス
+ * @param baseUrl Web URL 生成に使うベース URL
+ * @returns DTO 形式の検索レスポンス
+ */
 function toSearchResponseDto(p, r, baseUrl) {
     const results = toSearchResultDto(r.results, baseUrl);
     return {
@@ -373,12 +482,22 @@ function toSearchResponseDto(p, r, baseUrl) {
         results,
     };
 }
+/**
+ * 検索結果一覧を DTO 配列に変換する
+ * 必須項目が欠ける要素は後続処理を壊さないために除外する
+ *
+ * @param results 検索結果の配列
+ * @param baseUrl Web URL 生成に使うベース URL
+ * @returns DTO 形式の検索結果配列
+ */
 function toSearchResultDto(results, baseUrl) {
     return (results
         .map((r) => {
         const id = r.id ?? r.content?.id;
         const title = r.title ?? r.content?.title;
         if (!id || !title) {
+            // 不完全なデータを混ぜると利用側で例外や表示崩れを起こしやすいため除外する
+            logger_1.logger.warn(`Skip item: missing required fields (id/title): ${JSON.stringify({ id: id, title: title })}`);
             return null;
         }
         return {
@@ -392,30 +511,38 @@ function toSearchResultDto(results, baseUrl) {
             lastModified: r.lastModified,
         };
     })
+        // null を残すと返却型が不安定になり利用側の分岐が増えるためここで確定的に除去する
         .filter((x) => x !== null) ?? []);
 }
 
 
 /***/ }),
 
-/***/ 7753:
+/***/ 2796:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.OnPremConfluenceClient = void 0;
-const auth_1 = __nccwpck_require__(5367);
-const http_1 = __nccwpck_require__(9677);
-const url_1 = __nccwpck_require__(4008);
+const auth_1 = __nccwpck_require__(9156);
+const http_1 = __nccwpck_require__(238);
+const url_1 = __nccwpck_require__(2761);
 class OnPremConfluenceClient {
     cfg;
     constructor(cfg) {
         this.cfg = cfg;
     }
-    // On-Prem: 例) /rest/api/search?cql=...&limit=...&start=...
+    /**
+     * On-Prem の search API を呼び出すための URL と認証ヘッダを組み立てて取得する
+     *
+     * @param params cql とページング情報を受け取る
+     * @returns 検索結果を返す
+     * @throws fetchJson が送出する例外をそのまま送出する
+     */
     async searchRaw(params) {
         const url = new URL((0, url_1.joinUrl)(this.cfg.baseUrl, "/rest/api/search"));
+        // URLSearchParams を使いクエリのエンコード漏れを防ぎ CQL に特殊文字が含まれても安全に送る
         url.searchParams.set("cql", params.cql);
         url.searchParams.set("limit", String(params.limit));
         url.searchParams.set("start", String(params.start));
@@ -428,9 +555,14 @@ class OnPremConfluenceClient {
         }, this.cfg.timeoutMs);
     }
     /**
-     * On-Prem: 例) /rest/api/content/{id}?expand=space,version,body.storage
+     * On-Prem の content API を呼び出すための URL と認証ヘッダを組み立てて取得する
+     *
+     * @param params id と expand を受け取る
+     * @returns コンテンツ取得結果を返す
+     * @throws fetchJson が送出する例外をそのまま送出する
      */
     async getContentRaw(params) {
+        // パスパラメータ由来の予約文字混入でパス解釈が壊れるのを防ぐ
         const encodedId = encodeURIComponent(params.id);
         const url = new URL((0, url_1.joinUrlWithExpand)(this.cfg.baseUrl, `/rest/api/content/${encodedId}`, params.expand));
         return (0, http_1.fetchJson)(url.toString(), {
@@ -447,15 +579,15 @@ exports.OnPremConfluenceClient = OnPremConfluenceClient;
 
 /***/ }),
 
-/***/ 8108:
+/***/ 2307:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.OnPremGateway = void 0;
-const getContentMapper_1 = __nccwpck_require__(8586);
-const searchMapper_1 = __nccwpck_require__(2079);
+const getContentMapper_1 = __nccwpck_require__(3219);
+const searchMapper_1 = __nccwpck_require__(2450);
 class OnPremGateway {
     client;
     baseUrl;
@@ -463,16 +595,31 @@ class OnPremGateway {
         this.client = client;
         this.baseUrl = baseUrl;
     }
+    /**
+     * Confluence On-Prem の検索結果を取得してドメイン向けの形式に変換して返す
+     * クライアントの生レスポンスを呼び出し側が扱いやすい形に統一するために変換処理を挟む
+     *
+     * @param params 検索条件
+     * @returns 検索結果
+     */
     async search(params) {
         const response = await this.client.searchRaw(params);
         return (0, searchMapper_1.toSearchResponseDto)(params, response, this.baseUrl);
     }
+    /**
+     * Confluence On-Prem のコンテンツを取得してドメイン向けの形式に変換して返す
+     * 取得対象を最小化してレスポンスサイズと取得コストを抑えるために expand を組み立てる
+     *
+     * @param params 取得条件
+     * @returns コンテンツ
+     */
     async getContent(params) {
         const expandParts = [
             "space",
             "version",
             `body.${params.bodyRepresentation}`,
         ];
+        // ラベルが不要なケースで無駄な展開を避けるために指定がある場合のみ expand に含める
         if (params.includeLabels)
             expandParts.push("metadata.labels");
         const response = await this.client.getContentRaw({
@@ -487,17 +634,23 @@ exports.OnPremGateway = OnPremGateway;
 
 /***/ }),
 
-/***/ 3786:
+/***/ 8769:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createConfluenceGateway = createConfluenceGateway;
-const cloudConfluenceClient_1 = __nccwpck_require__(3905);
-const cloudGateway_1 = __nccwpck_require__(1876);
-const onpremConfluenceClient_1 = __nccwpck_require__(7753);
-const onpremGateway_1 = __nccwpck_require__(8108);
+const cloudConfluenceClient_1 = __nccwpck_require__(3132);
+const cloudGateway_1 = __nccwpck_require__(1843);
+const onpremConfluenceClient_1 = __nccwpck_require__(2796);
+const onpremGateway_1 = __nccwpck_require__(2307);
+/**
+ * Confluence の提供形態に応じて適切な Gateway 実装を生成して返す
+ *
+ * @param cfg 接続先の設定を受け取る
+ * @returns 設定に対応した ConfluenceGateway を返す
+ */
 function createConfluenceGateway(cfg) {
     if (cfg.hosting === "cloud") {
         const client = new cloudConfluenceClient_1.CloudConfluenceClient(cfg);
@@ -511,20 +664,20 @@ function createConfluenceGateway(cfg) {
 
 /***/ }),
 
-/***/ 8038:
+/***/ 3357:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createConfluenceGateway = void 0;
-var createConfluenceGateway_1 = __nccwpck_require__(3786);
+var createConfluenceGateway_1 = __nccwpck_require__(8769);
 Object.defineProperty(exports, "createConfluenceGateway", ({ enumerable: true, get: function () { return createConfluenceGateway_1.createConfluenceGateway; } }));
 
 
 /***/ }),
 
-/***/ 9957:
+/***/ 8298:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -534,14 +687,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.startMcpServer = startMcpServer;
-const confluenceConfig_1 = __nccwpck_require__(4692);
-const _confluence_1 = __nccwpck_require__(8038);
+const confluenceConfig_1 = __nccwpck_require__(5189);
+const _confluence_1 = __nccwpck_require__(3357);
 const mcp_js_1 = __nccwpck_require__(3886);
 const stdio_js_1 = __nccwpck_require__(4239);
-const logger_1 = __nccwpck_require__(8993);
-const package_json_1 = __importDefault(__nccwpck_require__(8330));
-const index_1 = __nccwpck_require__(7364);
-const index_2 = __nccwpck_require__(1245);
+const logger_1 = __nccwpck_require__(2006);
+const package_json_1 = __importDefault(__nccwpck_require__(1178));
+const index_1 = __nccwpck_require__(8827);
+const index_2 = __nccwpck_require__(4446);
+/**
+ * Confluence 向けの MCP Server を stdio で起動して利用可能なツールを登録する
+ * 設定値を集約して起動時ログに出すことで実行環境の差分を追跡可能にする
+ *
+ * @param env 実行環境の設定値
+ * @returns 接続完了まで待機する Promise を返す
+ * @throws Confluence 設定の生成や Gateway 初期化に失敗した場合に例外を投げる
+ * @throws MCP Server の接続に失敗した場合に例外を投げる
+ */
 async function startMcpServer(env) {
     const confluenceCfg = (0, confluenceConfig_1.createConfluenceConfig)(env);
     const confluence = (0, _confluence_1.createConfluenceGateway)(confluenceCfg);
@@ -572,7 +734,7 @@ async function startMcpServer(env) {
 
 /***/ }),
 
-/***/ 7364:
+/***/ 8827:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -580,11 +742,18 @@ async function startMcpServer(env) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GET_CONTENT_TOOL_NAME = void 0;
 exports.registerGetContentTool = registerGetContentTool;
-const logger_1 = __nccwpck_require__(8993);
-const mapper_1 = __nccwpck_require__(8563);
-const schema_1 = __nccwpck_require__(7925);
+const logger_1 = __nccwpck_require__(2006);
+const mapper_1 = __nccwpck_require__(6862);
+const schema_1 = __nccwpck_require__(1624);
 exports.GET_CONTENT_TOOL_NAME = "confluence_get_content";
 const DEFAULT_BODY_MAX_CHARS = 20000;
+/**
+ * ツール出力を人が読みやすい Markdown 形式に整形する
+ * モデルやユーザーが参照しやすいように本文をコードブロックで明示する
+ *
+ * @param out ツール出力の content
+ * @returns Markdown 文字列
+ */
 function toMarkdown(out) {
     const lines = [];
     const titleLine = out.url ? `# [${out.title}](${out.url})` : `# ${out.title}`;
@@ -607,12 +776,21 @@ function toMarkdown(out) {
         lines.push("");
         lines.push(`## body (${out.body.representation})`);
         lines.push("");
+        // HTML として扱わせたいので言語指定を html に固定する
         lines.push("````html");
         lines.push(out.body.value);
         lines.push("````");
     }
     return lines.join("\n");
 }
+/**
+ * Confluence のコンテンツ取得ツールをサーバに登録する
+ * 本文サイズの上限を強制してレスポンス肥大化や意図しない負荷を避ける
+ *
+ * @param server MCP サーバ
+ * @param gateway Confluence 取得ゲートウェイ
+ * @param options 登録オプション
+ */
 function registerGetContentTool(server, gateway, options) {
     const inputSchema = schema_1.GetContentInputSchema.shape;
     const outputSchema = schema_1.GetContentOutputSchema.shape;
@@ -638,6 +816,7 @@ function registerGetContentTool(server, gateway, options) {
         try {
             const getContentResponse = await gateway.getContent(getContentParams);
             const out = (0, mapper_1.toToolOutput)(getContentResponse);
+            // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
             const text = typedInput.asMarkdown
                 ? toMarkdown(out.content)
                 : JSON.stringify(out, null, 2);
@@ -648,6 +827,7 @@ function registerGetContentTool(server, gateway, options) {
             };
         }
         catch (err) {
+            // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
             const message = err instanceof Error ? err.message : String(err);
             logger_1.logger.error(`tool error: ${JSON.stringify({
                 tool: "confluence_get_content",
@@ -670,7 +850,7 @@ function registerGetContentTool(server, gateway, options) {
 
 /***/ }),
 
-/***/ 8563:
+/***/ 6862:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -678,6 +858,12 @@ function registerGetContentTool(server, gateway, options) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toGetContentParams = toGetContentParams;
 exports.toToolOutput = toToolOutput;
+/**
+ * ツール入力とコア層の取得パラメータの形を揃えて責務の境界を明確にするために変換する
+ *
+ * @param input ツール側の入力
+ * @returns コア層の取得パラメータ
+ */
 function toGetContentParams(input) {
     return {
         id: input.id,
@@ -685,7 +871,14 @@ function toGetContentParams(input) {
         includeLabels: input.includeLabels,
     };
 }
+/**
+ * 外部向けの出力形式を固定してレスポンス差分の影響範囲を最小化するために変換する
+ *
+ * @param response コア層の取得結果
+ * @returns ツールの出力
+ */
 function toToolOutput(response) {
+    // body の欠損時に中途半端な形を返すと呼び出し側の分岐が増えるため null に正規化する
     const body = response.body?.value
         ? { representation: response.body.value, value: response.body.value }
         : null;
@@ -708,7 +901,7 @@ function toToolOutput(response) {
 
 /***/ }),
 
-/***/ 7925:
+/***/ 1624:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -716,6 +909,9 @@ function toToolOutput(response) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GetContentOutputSchema = exports.GetContentSchema = exports.GetContentInputSchema = void 0;
 const zod_1 = __nccwpck_require__(924);
+/**
+ * Confluence のコンテンツ取得入力を厳密に検証するためのスキーマを定義する
+ */
 exports.GetContentInputSchema = zod_1.z
     .object({
     id: zod_1.z.string().min(1).max(128),
@@ -726,7 +922,11 @@ exports.GetContentInputSchema = zod_1.z
     bodyMaxChars: zod_1.z.number().int().optional(),
     asMarkdown: zod_1.z.boolean().optional(),
 })
-    .strict();
+    .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
+/**
+ * Confluence のコンテンツ取得結果を扱うためのスキーマを定義する
+ * 取得元の欠損や未対応フィールドが混在しても安全に処理できる形にする
+ */
 exports.GetContentSchema = zod_1.z
     .object({
     id: zod_1.z.string().min(1),
@@ -736,7 +936,7 @@ exports.GetContentSchema = zod_1.z
     spaceKey: zod_1.z.string().min(1).nullable(),
     spaceName: zod_1.z.string().min(1).nullable(),
     updated: zod_1.z.string().nullable(),
-    version: zod_1.z.union([zod_1.z.string(), zod_1.z.number()]).nullable(),
+    version: zod_1.z.union([zod_1.z.string(), zod_1.z.number()]).nullable(), // 型揺れを吸収して後段の変換責務を局所化する
     body: zod_1.z
         .object({
         representation: zod_1.z.string(),
@@ -745,17 +945,21 @@ exports.GetContentSchema = zod_1.z
         .nullable(),
     labels: zod_1.z.array(zod_1.z.string()).nullable(),
 })
-    .optional();
+    .optional(); // 未取得時のレスポンスを区別できるようにする
+/**
+ * Confluence のコンテンツ取得出力を厳密に検証するためのスキーマを定義する
+ * 返却形を固定して呼び出し側の分岐を減らす
+ */
 exports.GetContentOutputSchema = zod_1.z
     .object({
     content: exports.GetContentSchema,
 })
-    .strict();
+    .strict(); // 期待しない出力を拒否して境界の不整合を早期検知する
 
 
 /***/ }),
 
-/***/ 1245:
+/***/ 4446:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -763,11 +967,19 @@ exports.GetContentOutputSchema = zod_1.z
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SEARCH_TOOL_NAME = void 0;
 exports.registerSearchTool = registerSearchTool;
-const logger_1 = __nccwpck_require__(8993);
-const mapper_1 = __nccwpck_require__(3316);
-const schema_1 = __nccwpck_require__(234);
+const logger_1 = __nccwpck_require__(2006);
+const mapper_1 = __nccwpck_require__(417);
+const schema_1 = __nccwpck_require__(5719);
 exports.SEARCH_TOOL_NAME = "confluence_search";
 const DEFAULT_LIMIT = 10;
+/**
+ * デフォルトCQLを追加しつつ ORDER BY の位置を維持して検索結果の意図しない並び替えを避ける
+ * ORDER BY を後段に残すことで追加条件がソート句を壊さないようにする
+ *
+ * @param inputCql 入力されたCQL
+ * @param defaultCql 既定で付与するCQL
+ * @returns 結合後のCQL
+ */
 function mergeCql(inputCql, defaultCql) {
     if (!defaultCql) {
         return inputCql;
@@ -784,9 +996,13 @@ function mergeCql(inputCql, defaultCql) {
     const mergedMain = `(${defaultCql}) AND (${main})`;
     return `${mergedMain} ${orderBy}`.trim();
 }
-function clampInt(defaultLimit, maxLimit) {
-    return Math.min(defaultLimit, maxLimit);
-}
+/**
+ * ツール出力を人が読みやすい Markdown 形式に整形する
+ * 検索結果をリンク付き箇条書きにしてモデルやユーザーの参照コストを下げる
+ *
+ * @param out ツール出力
+ * @returns Markdown 文字列
+ */
 function toMarkdown(out) {
     const lines = [];
     lines.push(`total size: ${out.page.total}`);
@@ -804,6 +1020,14 @@ function toMarkdown(out) {
     }
     return lines.join("\n");
 }
+/**
+ * Confluence の検索ツールをサーバに登録する
+ * リミット上限と既定CQLを強制して意図しない高負荷検索やスコープ逸脱を避ける
+ *
+ * @param server MCP サーバ
+ * @param gateway Confluence 検索ゲートウェイ
+ * @param options 登録オプション
+ */
 function registerSearchTool(server, gateway, options) {
     const inputSchema = schema_1.SearchInputSchema.shape;
     const outputSchema = schema_1.SearchOutputSchema.shape;
@@ -820,7 +1044,8 @@ function registerSearchTool(server, gateway, options) {
         const requestId = ctx.requestId;
         const typedInput = input;
         const cql = mergeCql(typedInput.cql, options.defaultCql);
-        const limit = clampInt(typedInput.limit ?? DEFAULT_LIMIT, options.maxLimit);
+        // 既定値と上限値からリミットを確定して過大な取得要求を抑止する
+        const limit = Math.min(typedInput.limit ?? DEFAULT_LIMIT, options.maxLimit);
         const searchRequestParams = (0, mapper_1.toSearchRequestParams)({
             ...typedInput,
             cql,
@@ -835,6 +1060,7 @@ function registerSearchTool(server, gateway, options) {
         try {
             const searchResponse = await gateway.search(searchRequestParams);
             const out = (0, mapper_1.toToolOutput)(searchResponse);
+            // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
             const text = typedInput.asMarkdown
                 ? toMarkdown(out)
                 : JSON.stringify(out, null, 2);
@@ -845,6 +1071,7 @@ function registerSearchTool(server, gateway, options) {
             };
         }
         catch (err) {
+            // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
             const message = err instanceof Error ? err.message : String(err);
             logger_1.logger.error(`tool error: ${JSON.stringify({
                 tool: exports.SEARCH_TOOL_NAME,
@@ -876,7 +1103,7 @@ function registerSearchTool(server, gateway, options) {
 
 /***/ }),
 
-/***/ 3316:
+/***/ 417:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -884,6 +1111,12 @@ function registerSearchTool(server, gateway, options) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.toSearchRequestParams = toSearchRequestParams;
 exports.toToolOutput = toToolOutput;
+/**
+ * ツール入力とコア層の検索パラメータの形を揃えて責務の境界を明確にするために変換する
+ *
+ * @param input ツール側の入力
+ * @returns コア層の検索パラメータ
+ */
 function toSearchRequestParams(input) {
     return {
         cql: input.cql,
@@ -891,16 +1124,25 @@ function toSearchRequestParams(input) {
         start: input.start,
     };
 }
+/**
+ * 外部向けの出力形式を固定してレスポンス差分の影響範囲を最小化するために変換する
+ *
+ * @param response コア層の検索結果
+ * @returns ツールの出力
+ */
 function toToolOutput(response) {
     return {
         results: response.results.map((r) => {
             return {
                 id: r.id,
                 title: r.title,
+                // 呼び出し側で欠損チェックの分岐を増やさないため null に正規化する
                 type: r.type ?? null,
                 url: r.url ?? null,
+                // 未設定と空文字を区別して扱いやすくするため null に正規化する
                 spaceKey: r.spaceKey ?? null,
                 spaceName: r.spaceName ?? null,
+                // 欠損時に表示や整形の条件分岐を増やさないため null に正規化する
                 excerpt: r.excerpt ?? null,
                 lastModified: r.lastModified ?? null,
             };
@@ -916,7 +1158,7 @@ function toToolOutput(response) {
 
 /***/ }),
 
-/***/ 234:
+/***/ 5719:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -924,6 +1166,9 @@ function toToolOutput(response) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SearchOutputSchema = exports.SearchResultSchema = exports.SearchInputSchema = void 0;
 const zod_1 = __nccwpck_require__(924);
+/**
+ * Confluence の検索入力を厳密に検証するためのスキーマを定義する
+ */
 exports.SearchInputSchema = zod_1.z
     .object({
     cql: zod_1.z.string().min(1),
@@ -931,19 +1176,26 @@ exports.SearchInputSchema = zod_1.z
     start: zod_1.z.number().int().min(0).default(0),
     asMarkdown: zod_1.z.boolean().default(true),
 })
-    .strict();
+    .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
+/**
+ * Confluence の検索結果1件を扱うためのスキーマを定義する
+ * 欠損しうるフィールドを nullable として明示して後段での分岐と例外を抑制する
+ */
 exports.SearchResultSchema = zod_1.z
     .object({
     id: zod_1.z.string().min(1),
     title: zod_1.z.string().min(1),
-    type: zod_1.z.string().min(1).nullable(), // "page" | "blogpost" | "attachment" など
+    type: zod_1.z.string().min(1).nullable(), // 検索対象の種別は増減し得るため列挙せず文字列として受ける
     url: zod_1.z.url().nullable(),
     spaceKey: zod_1.z.string().min(1).nullable(),
     spaceName: zod_1.z.string().min(1).nullable(),
     excerpt: zod_1.z.string().nullable(),
-    lastModified: zod_1.z.string().nullable(), // ISO8601 文字列
+    lastModified: zod_1.z.string().nullable(), // 表現差を許容して変換責務を後段に寄せるため文字列で受ける
 })
-    .strict();
+    .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
+/**
+ * Confluence の検索出力を厳密に検証するためのスキーマを定義する
+ */
 exports.SearchOutputSchema = zod_1.z
     .object({
     page: zod_1.z
@@ -952,25 +1204,33 @@ exports.SearchOutputSchema = zod_1.z
         start: zod_1.z.number().int().nonnegative(),
         limit: zod_1.z.number().int().positive(),
     })
-        .strict(),
+        .strict(), // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
     results: zod_1.z.array(exports.SearchResultSchema),
 })
-    .strict();
+    .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 
 
 /***/ }),
 
-/***/ 5367:
+/***/ 9156:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.authHeaders = authHeaders;
+/**
+ * Confluence の認証種別に合わせて Authorization ヘッダーを生成する
+ * 呼び出し側の分岐をなくして認証方式の違いをこの関数に閉じ込めるために用意する
+ *
+ * @param auth Confluence の認証情報
+ * @returns Authorization を含むヘッダーオブジェクト 認証不要の場合は空オブジェクト
+ */
 function authHeaders(auth) {
     if (auth.kind === "bearer")
         return { Authorization: `Bearer ${auth.token}` };
     if (auth.kind === "basic") {
+        // Basic 認証は RFC に従い email と apiToken を base64 化して送る必要があるためここで変換する
         const token = Buffer.from(`${auth.email}:${auth.apiToken}`).toString("base64");
         return { Authorization: `Basic ${token}` };
     }
@@ -980,16 +1240,27 @@ function authHeaders(auth) {
 
 /***/ }),
 
-/***/ 9677:
+/***/ 238:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.fetchJson = fetchJson;
-const logger_1 = __nccwpck_require__(8993);
+const logger_1 = __nccwpck_require__(2006);
+/**
+ * タイムアウト制御とエラーメッセージの充実により通信失敗時の原因特定を容易にするためにJSON取得処理を共通化する
+ *
+ * @param url リクエスト先URL
+ * @param init fetchに渡す初期化オプション
+ * @param timeoutMs タイムアウト時間ミリ秒
+ * @returns レスポンスJSONを型付けして返す
+ * @throws HTTPステータスが成功以外の場合に本文を含めて例外を投げる
+ * @throws タイムアウトによりAbortされた場合に例外を投げる
+ */
 async function fetchJson(url, init, timeoutMs) {
     const ac = new AbortController();
+    // fetch自体に標準タイムアウトが無いため呼び出し側の期待時間内に必ず中断できるようにする
     const t = setTimeout(() => ac.abort(), timeoutMs);
     try {
         const res = await fetch(url, { ...init, signal: ac.signal });
@@ -1004,6 +1275,7 @@ async function fetchJson(url, init, timeoutMs) {
             contentLength: res.headers.get("content-length"),
         })}`);
         if (!res.ok) {
+            // 上位で原因を判断できるようにレスポンス本文を可能な限り例外に含める
             const text = await res.text().catch(() => "");
             throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
         }
@@ -1012,6 +1284,7 @@ async function fetchJson(url, init, timeoutMs) {
         return data;
     }
     finally {
+        // 例外時もタイマーを必ず解除して不要なAbortやリソース保持を防ぐ
         clearTimeout(t);
     }
 }
@@ -1019,7 +1292,7 @@ async function fetchJson(url, init, timeoutMs) {
 
 /***/ }),
 
-/***/ 8993:
+/***/ 2006:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -1067,7 +1340,7 @@ function bindConsoleToLogger() {
 
 /***/ }),
 
-/***/ 4008:
+/***/ 2761:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
@@ -1077,24 +1350,55 @@ exports.ensureNoTrailingSlash = ensureNoTrailingSlash;
 exports.joinUrl = joinUrl;
 exports.joinUrlWithExpand = joinUrlWithExpand;
 exports.toWebUrl = toWebUrl;
+/**
+ * URL末尾のスラッシュを除去して同一URLとして扱えるように正規化する
+ *
+ * @param url 正規化対象のURL文字列
+ * @returns 末尾のスラッシュを除去したURL文字列を返す
+ */
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, "");
 }
+/**
+ * baseとpathを結合して余計なスラッシュの揺れを吸収したURL文字列を作る
+ *
+ * @param base ベースURL文字列
+ * @param path 結合するパス文字列
+ * @returns 結合後のURL文字列を返す
+ */
 function joinUrl(base, path) {
+    // 呼び出し側のbase指定に依存せず常に単一の区切りになるようにする
     return `${ensureNoTrailingSlash(base)}${path.startsWith("/") ? "" : "/"}${path}`;
 }
+/**
+ * baseとpathを結合して必要なときだけexpandクエリを付与したURL文字列を作る
+ *
+ * @param base ベースURL文字列
+ * @param path 結合するパス文字列
+ * @param expand expandクエリに設定する値
+ * @returns expandを反映したURL文字列を返す
+ */
 function joinUrlWithExpand(base, path, expand) {
     const url = new URL(joinUrl(base, path));
+    // 空文字を設定すると意図しないクエリ付与になるため値があるときだけ付与する
     if (expand && expand.length > 0) {
         url.searchParams.set("expand", expand);
     }
     return url.toString();
 }
+/**
+ * webuiが絶対URLならそのまま返し相対指定ならbaseUrlを基準に絶対URLへ変換する
+ *
+ * @param baseUrl 相対webuiの解決に使うベースURL文字列
+ * @param webui WebUIのURLまたはパス文字列
+ * @returns 解決後のWebUI用URL文字列を返す
+ */
 function toWebUrl(baseUrl, webui) {
     if (!webui)
         return undefined;
     if (/^https?:\/\//i.test(webui))
         return webui;
+    // baseの末尾スラッシュ有無で解決結果が揺れないようにディレクトリ基準を固定する
     const base = baseUrl.replace(/\/+$/, "") + "/";
     return new URL(webui.replace(/^\/+/, ""), base).toString();
 }
@@ -31904,7 +32208,7 @@ class UriTemplate {
         const name = part.name;
         switch (part.operator) {
             case '':
-                pattern = part.exploded ? '([^/]+(?:,[^/]+)*)' : '([^/,]+)';
+                pattern = part.exploded ? '([^/,]+(?:,[^/,]+)*)' : '([^/,]+)';
                 break;
             case '+':
             case '#':
@@ -31914,7 +32218,7 @@ class UriTemplate {
                 pattern = '\\.([^/,]+)';
                 break;
             case '/':
-                pattern = '/' + (part.exploded ? '([^/]+(?:,[^/]+)*)' : '([^/,]+)');
+                pattern = '/' + (part.exploded ? '([^/,]+(?:,[^/,]+)*)' : '([^/,]+)');
                 break;
             default:
                 pattern = '([^/]+)';
@@ -59364,6 +59668,14 @@ function _function(params) {
 
 /***/ }),
 
+/***/ 1178:
+/***/ ((module) => {
+
+"use strict";
+module.exports = /*#__PURE__*/JSON.parse('{"name":"my-confluence-mcp","version":"1.0.0","description":"Confluence MCP Server for Github Copilot","license":"MIT","author":"Ymmy833y","scripts":{"dev":"tsx src/index.ts","build":"tsc && tsc-alias","bundle":"ncc build build/src/index.js -o dist","start":"node dist/index.js","lint":"npx eslint .","lint:fix":"npx eslint . --fix","test":"vitest run","test:watch":"vitest","test:cov":"vitest run --coverage"},"devDependencies":{"@eslint/js":"^9.39.2","@types/node":"^25.0.3","@vercel/ncc":"^0.38.4","@vitest/coverage-v8":"^4.0.16","eslint":"^9.39.2","eslint-config-prettier":"^10.1.8","eslint-plugin-prettier":"^5.5.4","eslint-plugin-simple-import-sort":"^12.1.1","prettier":"^3.7.4","tsc-alias":"^1.8.16","tsx":"^4.21.0","typescript":"^5.9.3","typescript-eslint":"^8.51.0","vite-tsconfig-paths":"^6.0.4","vitest":"^4.0.16"},"dependencies":{"@modelcontextprotocol/sdk":"^1.25.1","dotenv":"^17.2.3","winston":"^3.19.0","zod":"^4.3.4"}}');
+
+/***/ }),
+
 /***/ 1808:
 /***/ ((module) => {
 
@@ -59409,14 +59721,6 @@ module.exports = /*#__PURE__*/JSON.parse('{"name":"dotenv","version":"17.2.3","d
 
 "use strict";
 module.exports = {"version":"3.19.0"};
-
-/***/ }),
-
-/***/ 8330:
-/***/ ((module) => {
-
-"use strict";
-module.exports = /*#__PURE__*/JSON.parse('{"name":"my-confluence-mcp","version":"1.0.0","description":"Confluence MCP Server for Github Copilot","license":"MIT","author":"Ymmy833y","scripts":{"dev":"tsx src/index.ts","build":"tsc && tsc-alias","bundle":"ncc build build/index.js -o dist","start":"node dist/index.js","lint":"npx eslint .","lint:fix":"npx eslint . --fix"},"devDependencies":{"@eslint/js":"^9.39.2","@types/node":"^25.0.3","@vercel/ncc":"^0.38.4","eslint":"^9.39.2","eslint-config-prettier":"^10.1.8","eslint-plugin-prettier":"^5.5.4","eslint-plugin-simple-import-sort":"^12.1.1","prettier":"^3.7.4","tsc-alias":"^1.8.16","tsx":"^4.21.0","typescript":"^5.9.3","typescript-eslint":"^8.51.0"},"dependencies":{"@modelcontextprotocol/sdk":"^1.25.1","dotenv":"^17.2.3","winston":"^3.19.0","zod":"^4.3.4"}}');
 
 /***/ })
 
@@ -59465,9 +59769,9 @@ var __webpack_exports__ = {};
 var exports = __webpack_exports__;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const env_1 = __nccwpck_require__(9461);
-const server_1 = __nccwpck_require__(9957);
-const logger_1 = __nccwpck_require__(8993);
+const env_1 = __nccwpck_require__(810);
+const server_1 = __nccwpck_require__(8298);
+const logger_1 = __nccwpck_require__(2006);
 async function main() {
     (0, logger_1.bindConsoleToLogger)();
     try {
