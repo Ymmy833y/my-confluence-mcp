@@ -14,6 +14,13 @@ export type RegisterGetContentToolOptions = {
   maxBodyMaxChars: number; // default: 20000
 };
 
+/**
+ * ツール出力を人が読みやすい Markdown 形式に整形する
+ * モデルやユーザーが参照しやすいように本文をコードブロックで明示する
+ *
+ * @param out ツール出力の content
+ * @returns Markdown 文字列
+ */
 function toMarkdown(out: NonNullable<GetContentOutput["content"]>): string {
   const lines: string[] = [];
 
@@ -36,6 +43,7 @@ function toMarkdown(out: NonNullable<GetContentOutput["content"]>): string {
     lines.push("");
     lines.push(`## body (${out.body.representation})`);
     lines.push("");
+    // HTML として扱わせたいので言語指定を html に固定する
     lines.push("````html");
     lines.push(out.body.value);
     lines.push("````");
@@ -44,6 +52,14 @@ function toMarkdown(out: NonNullable<GetContentOutput["content"]>): string {
   return lines.join("\n");
 }
 
+/**
+ * Confluence のコンテンツ取得ツールをサーバに登録する
+ * 本文サイズの上限を強制してレスポンス肥大化や意図しない負荷を避ける
+ *
+ * @param server MCP サーバ
+ * @param gateway Confluence 取得ゲートウェイ
+ * @param options 登録オプション
+ */
 export function registerGetContentTool(
   server: McpServer,
   gateway: ConfluenceGateway,
@@ -89,6 +105,7 @@ export function registerGetContentTool(
 
         const out = toToolOutput(getContentResponse) satisfies GetContentOutput;
 
+        // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
         const text = typedInput.asMarkdown
           ? toMarkdown(out.content!)
           : JSON.stringify(out, null, 2);
@@ -99,6 +116,7 @@ export function registerGetContentTool(
           isError: false,
         };
       } catch (err: unknown) {
+        // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
         const message = err instanceof Error ? err.message : String(err);
 
         logger.error(

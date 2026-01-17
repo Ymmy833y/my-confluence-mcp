@@ -2,6 +2,12 @@ import { GetContentParams, GetContentResultDto } from "@core/getContentTypes";
 
 import { GetContentInput, GetContentOutput } from "./types";
 
+/**
+ * ツール入力とコア層の取得パラメータの形を揃えて責務の境界を明確にするために変換する
+ *
+ * @param input ツール側の入力
+ * @returns コア層の取得パラメータ
+ */
 export function toGetContentParams(input: GetContentInput): GetContentParams {
   return {
     id: input.id,
@@ -10,7 +16,14 @@ export function toGetContentParams(input: GetContentInput): GetContentParams {
   };
 }
 
+/**
+ * 外部向けの出力形式を固定してレスポンス差分の影響範囲を最小化するために変換する
+ *
+ * @param response コア層の取得結果
+ * @returns ツールの出力
+ */
 export function toToolOutput(response: GetContentResultDto): GetContentOutput {
+  // body の欠損時に中途半端な形を返すと呼び出し側の分岐が増えるため null に正規化する
   const body = response.body?.value
     ? { representation: response.body.value, value: response.body.value }
     : null;
