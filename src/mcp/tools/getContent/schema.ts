@@ -5,13 +5,28 @@ import { z } from "zod";
  */
 export const GetContentInputSchema = z
   .object({
-    id: z.string().min(1).max(128),
+    id: z.string().min(1).max(128).describe("Confluence content ID"),
     representation: z
       .enum(["storage", "view", "export_view"])
-      .default("storage"),
-    includeLabels: z.boolean().default(false),
-    bodyMaxChars: z.number().int().optional(),
-    asMarkdown: z.boolean().default(true),
+      .default("storage")
+      .describe(
+        "Preferred body representation to return. If the preferred representation is not available, the tool falls back automatically: Cloud: storage → view → export_view, On-prem: storage → view.",
+      ),
+    includeLabels: z
+      .boolean()
+      .default(false)
+      .describe("If true, include labels in the response."),
+    bodyMaxChars: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        "Max chars for body text in the tool output. Large bodies may be truncated.",
+      ),
+    asMarkdown: z
+      .boolean()
+      .default(true)
+      .describe("If true, returns body converted to Markdown when possible."),
   })
   .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 
@@ -21,26 +36,78 @@ export const GetContentInputSchema = z
  */
 export const GetContentSchema = z
   .object({
-    id: z.string().min(1),
-    title: z.string().min(1),
+    id: z.string().min(1).describe("Content ID"),
+    title: z.string().min(1).describe("Content title"),
 
-    type: z.string().min(1).nullable(),
-    url: z.url().nullable(),
+    type: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe(
+        "Content type (nullable: may be missing depending on API / permissions)",
+      ),
 
-    spaceKey: z.string().min(1).nullable(),
-    spaceName: z.string().min(1).nullable(),
+    url: z
+      .url()
+      .nullable()
+      .describe(
+        "Web UI URL for the content (nullable: may be missing on some environments)",
+      ),
 
-    updated: z.string().nullable(),
-    version: z.union([z.string(), z.number()]).nullable(), // 型揺れを吸収して後段の変換責務を局所化する
+    spaceKey: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe(
+        "Space key (nullable: may be missing depending on API / permissions)",
+      ),
+
+    spaceName: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe(
+        "Space name (nullable: may be missing depending on API / permissions)",
+      ),
+
+    updated: z
+      .string()
+      .nullable()
+      .describe(
+        "Last updated timestamp string (nullable: format differs by environment)",
+      ),
+
+    version: z
+      .union([z.string(), z.number()])
+      .nullable()
+      .describe(
+        "Version identifier (nullable). Union is used to absorb type differences across environments.",
+      ),
 
     body: z
       .object({
-        representation: z.string(),
-        value: z.string(),
+        representation: z
+          .string()
+          .describe(
+            "Representation of the returned body (e.g., storage/view/export_view)",
+          ),
+        value: z
+          .string()
+          .describe(
+            "Body content (HTML/XHTML or converted text depending on options)",
+          ),
       })
-      .nullable(),
+      .nullable()
+      .describe(
+        "Body object (nullable: may be missing due to permissions, API behavior, or mapping constraints).",
+      ),
 
-    labels: z.array(z.string()).nullable(),
+    labels: z
+      .array(z.string())
+      .nullable()
+      .describe(
+        "Labels list (nullable: present only when includeLabels=true and supported by environment)",
+      ),
   })
   .strict(); // 期待しない出力を拒否して境界の不整合を早期検知する
 
@@ -50,6 +117,8 @@ export const GetContentSchema = z
  */
 export const GetContentOutputSchema = z
   .object({
-    content: GetContentSchema,
+    content: GetContentSchema.describe(
+      "Normalized content object for tool consumers",
+    ),
   })
   .strict(); // 期待しない出力を拒否して境界の不整合を早期検知する
