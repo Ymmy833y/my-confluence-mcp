@@ -25,7 +25,10 @@ export function toGetContentParams(input: GetContentInput): GetContentParams {
 export function toToolOutput(response: GetContentResultDto): GetContentOutput {
   // body の欠損時に中途半端な形を返すと呼び出し側の分岐が増えるため null に正規化する
   const body = response.body?.value
-    ? { representation: response.body.value, value: response.body.value }
+    ? {
+        representation: response.body.representation,
+        value: response.body.value,
+      }
     : null;
 
   return {

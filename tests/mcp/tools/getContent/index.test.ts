@@ -2,6 +2,7 @@
 import type { GetContentOutput } from "@mcp/tools/getContent/types";
 import { logger } from "@utils/logger";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod";
 
 vi.mock("@utils/logger");
 
@@ -22,11 +23,10 @@ describe("mcp/tools/getContent/index", () => {
         getContent: vi.fn(),
       } as unknown as { getContent: (params: unknown) => Promise<unknown> };
 
-      // NodeNext なので index.js を明示
+      // Act
       const { registerGetContentTool, GET_CONTENT_TOOL_NAME } =
         await import("@mcp/tools/getContent/index.js");
 
-      // Act
       registerGetContentTool(server as any, gateway as any, {
         maxBodyMaxChars: 20000,
       });
@@ -183,6 +183,14 @@ describe("mcp/tools/getContent/index", () => {
         getContent: vi.fn().mockResolvedValue({
           id: "1",
           title: "Title",
+          type: null,
+          url: null,
+          spaceKey: null,
+          spaceName: null,
+          updated: null,
+          version: null,
+          body: null,
+          labels: null,
         }),
       } as unknown as { getContent: (params: unknown) => Promise<unknown> };
 
@@ -210,12 +218,66 @@ describe("mcp/tools/getContent/index", () => {
       );
 
       // Assert
-      expect(logger.info).toHaveBeenCalledTimes(1);
-      const msg = (logger.info as any).mock.calls[0]?.[0];
-      expect(String(msg)).toContain('"bodyMaxChars":100');
+      expect(logger.info).toHaveBeenCalled();
+      const msgs = (logger.info as any).mock.calls.map((c: unknown[]) =>
+        String(c[0]),
+      );
+      expect(msgs.some((m: string) => m.includes('"bodyMaxChars":100'))).toBe(
+        true,
+      );
     });
 
-    it("異常系: gateway.getContent が例外を投げた場合 isError=true で fallback を返す", async () => {
+    it("異常系: 出力のスキーマ検証が失敗した場合 isError=true を返す", async () => {
+      // Arrange
+      const registerTool = vi.fn();
+      const server = { registerTool } as unknown as {
+        registerTool: typeof registerTool;
+      };
+
+      const gateway = {
+        getContent: vi.fn().mockResolvedValue({
+          id: "1",
+          title: "Title",
+        }),
+      } as unknown as { getContent: (params: unknown) => Promise<unknown> };
+
+      const schemaMod = await import("@mcp/tools/getContent/schema.js");
+      vi.spyOn(schemaMod.GetContentOutputSchema, "parse").mockImplementation(
+        () => {
+          throw new ZodError([]);
+        },
+      );
+
+      const { registerGetContentTool } =
+        await import("@mcp/tools/getContent/index.js");
+
+      registerGetContentTool(server as any, gateway as any, {
+        maxBodyMaxChars: 100,
+      });
+
+      const handler = registerTool.mock.calls[0]?.[2] as (
+        input: unknown,
+        ctx: { requestId: string },
+      ) => Promise<{
+        content: Array<{ type: "text"; text: string }>;
+        isError: boolean;
+      }>;
+
+      // Act
+      const actual = await handler(
+        { id: "1", representation: "storage", includeLabels: false },
+        { requestId: "req-4" },
+      );
+
+      // Assert
+      expect(actual.isError).toBe(true);
+      expect(actual.content[0]?.text).toContain(
+        "Tool output validation failed",
+      );
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it("異常系: gateway.getContent が例外を投げた場合 isError=true を返す", async () => {
       // Arrange
       const registerTool = vi.fn();
       const server = { registerTool } as unknown as {
@@ -244,14 +306,14 @@ describe("mcp/tools/getContent/index", () => {
       // Act
       const actual = await handler(
         { id: "1", representation: "storage", includeLabels: false },
-        { requestId: "req-4" },
+        { requestId: "req-5" },
       );
 
       // Assert
       expect(actual.isError).toBe(true);
       expect(actual.content[0]?.text).toContain('"isError": true');
       expect(actual.content[0]?.text).toContain('"error": "boom"');
-      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalled();
     });
   });
 });

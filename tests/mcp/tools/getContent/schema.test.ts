@@ -18,6 +18,7 @@ describe("mcp/tools/getContent/schema", () => {
         id: "123",
         representation: "storage",
         includeLabels: false,
+        asMarkdown: true,
       });
     });
 
@@ -47,26 +48,45 @@ describe("mcp/tools/getContent/schema", () => {
 
     it("asMarkdown は boolean を許容する", () => {
       // Arrange
-      const input = { id: "1", asMarkdown: true };
+      const input = { id: "1", asMarkdown: false };
 
       // Act
       const actual = GetContentInputSchema.parse(input);
 
       // Assert
-      expect(actual.asMarkdown).toBe(true);
+      expect(actual.asMarkdown).toBe(false);
     });
   });
 
   describe("GetContentOutputSchema", () => {
-    it("content は undefined を許容する（optional）", () => {
+    it("content が無い場合はエラーになる", () => {
       // Arrange
       const input = {};
 
-      // Act
-      const actual = GetContentOutputSchema.parse(input);
+      // Act & Assert
+      expect(() => GetContentOutputSchema.parse(input)).toThrow();
+    });
 
-      // Assert
-      expect(actual).toEqual({ content: undefined });
+    it("strict: 期待しないキーがあるとエラーになる", () => {
+      // Arrange
+      const input = {
+        content: {
+          id: "1",
+          title: "T",
+          type: null,
+          url: null,
+          spaceKey: null,
+          spaceName: null,
+          updated: null,
+          version: null,
+          body: null,
+          labels: null,
+          unknownKey: "x",
+        },
+      };
+
+      // Act & Assert
+      expect(() => GetContentOutputSchema.parse(input)).toThrow();
     });
 
     it("content.url は URL 形式でないとエラーになる", () => {

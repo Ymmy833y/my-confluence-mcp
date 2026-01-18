@@ -9,6 +9,7 @@ describe("mcp/tools/getContent/mapper", () => {
         id: "123",
         representation: "view" as const,
         includeLabels: true,
+        asMarkdown: true,
       };
 
       // Act
@@ -28,6 +29,7 @@ describe("mcp/tools/getContent/mapper", () => {
         id: "abc",
         representation: "storage" as const,
         includeLabels: false,
+        asMarkdown: true,
       };
 
       // Act
@@ -99,7 +101,7 @@ describe("mcp/tools/getContent/mapper", () => {
       expect(actual.content?.body).toBeNull();
     });
 
-    it("body.value が空文字の場合は body=null を返す（境界値）", () => {
+    it("body.value が空文字の場合は body=null を返す", () => {
       // Arrange
       const dto = {
         id: "1",
@@ -127,7 +129,7 @@ describe("mcp/tools/getContent/mapper", () => {
 
       // Assert
       expect(actual.content?.body).toEqual({
-        representation: "<p>Hello</p>",
+        representation: "storage",
         value: "<p>Hello</p>",
       });
     });

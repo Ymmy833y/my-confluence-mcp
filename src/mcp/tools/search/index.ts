@@ -1,6 +1,7 @@
 import { ConfluenceGateway } from "@core/confluenceGateway";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { logger } from "@utils/logger";
+import { ZodError } from "zod";
 
 import { toSearchRequestParams, toToolOutput } from "./mapper";
 import { SearchInputSchema, SearchOutputSchema } from "./schema";
@@ -127,18 +128,41 @@ export function registerSearchTool(
         const searchResponse = await gateway.search(searchRequestParams);
 
         const out = toToolOutput(searchResponse) satisfies SearchToolOutput;
+        const parsedOut = SearchOutputSchema.parse(out);
 
         // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
         const text = typedInput.asMarkdown
-          ? toMarkdown(out)
-          : JSON.stringify(out, null, 2);
+          ? toMarkdown(parsedOut)
+          : JSON.stringify(parsedOut, null, 2);
 
         return {
           content: [{ type: "text", text }],
-          structuredContent: out,
+          structuredContent: parsedOut,
           isError: false,
         };
       } catch (err: unknown) {
+        if (err instanceof ZodError) {
+          logger.error(
+            `tool output validation error: ${JSON.stringify({
+              tool: SEARCH_TOOL_NAME,
+              requestId,
+              issues: err.issues,
+            })}`,
+          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  { isError: true, error: "Tool output validation failed" },
+                  null,
+                  2,
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
         // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
         const message = err instanceof Error ? err.message : String(err);
 
@@ -150,15 +174,6 @@ export function registerSearchTool(
           })}`,
         );
 
-        const fallback: SearchToolOutput = {
-          results: [],
-          page: {
-            total: 0,
-            start: typedInput.start,
-            limit,
-          },
-        };
-
         return {
           content: [
             {
@@ -166,7 +181,6 @@ export function registerSearchTool(
               text: JSON.stringify({ isError: true, error: message }, null, 2),
             },
           ],
-          structuredContent: fallback,
           isError: true,
         };
       }
