@@ -167,9 +167,7 @@ describe("mcp/tools/getContent/index", () => {
       expect(text).toContain("- updated: 2025-01-01T00:00:00Z");
       expect(text).toContain("- version: 2");
       expect(text).toContain("- labels: a, b");
-      expect(text).toContain("````html");
-      expect(text).toContain("<p>Hello</p>");
-      expect(text).toContain("````");
+      expect(text).toContain("Hello");
     });
 
     it("bodyMaxChars は options の上限で clamp され、logger.info の params に反映される", async () => {

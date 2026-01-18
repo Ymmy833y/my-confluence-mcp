@@ -1,5 +1,6 @@
 import { ConfluenceGateway } from "@core/confluenceGateway";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { htmlToMarkdown } from "@utils/htmlToMarkdown";
 import { logger } from "@utils/logger";
 import { ZodError } from "zod";
 
@@ -17,7 +18,7 @@ export type RegisterGetContentToolOptions = {
 
 /**
  * ツール出力を人が読みやすい Markdown 形式に整形する
- * モデルやユーザーが参照しやすいように本文をコードブロックで明示する
+ * モデルやユーザーが参照しやすいように本文を Markdown として整形する
  *
  * @param out ツール出力の content
  * @returns Markdown 文字列
@@ -44,10 +45,11 @@ function toMarkdown(out: NonNullable<GetContentOutput["content"]>): string {
     lines.push("");
     lines.push(`## body (${out.body.representation})`);
     lines.push("");
-    // HTML として扱わせたいので言語指定を html に固定する
-    lines.push("````html");
-    lines.push(out.body.value);
-    lines.push("````");
+
+    const bodyMd = htmlToMarkdown(out.body.value);
+    if (bodyMd) {
+      lines.push(bodyMd);
+    }
   }
 
   return lines.join("\n");
