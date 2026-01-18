@@ -5,10 +5,36 @@ import { z } from "zod";
  */
 export const SearchInputSchema = z
   .object({
-    cql: z.string().min(1),
-    limit: z.number().int().min(1),
-    start: z.number().int().min(0).default(0),
-    asMarkdown: z.boolean().default(true),
+    cql: z
+      .string()
+      .min(1)
+      .describe(
+        'Confluence Query Language (CQL). Example: type=page AND space.key=ABC AND text~"keyword"',
+      ),
+
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .describe(
+        "Max number of results to return per request. Note: the backend may cap the effective limit depending on expansions and environment.",
+      ),
+
+    start: z
+      .number()
+      .int()
+      .min(0)
+      .default(0)
+      .describe(
+        "Start index for pagination (0-based). On some environments, response may not include start; the tool may rely on request value.",
+      ),
+
+    asMarkdown: z
+      .boolean()
+      .default(true)
+      .describe(
+        "If true, returns excerpt in Markdown-friendly form when possible.",
+      ),
   })
   .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 
@@ -18,17 +44,49 @@ export const SearchInputSchema = z
  */
 export const SearchResultSchema = z
   .object({
-    id: z.string().min(1),
-    title: z.string().min(1),
+    id: z.string().min(1).describe("Content ID for the search hit"),
+    title: z.string().min(1).describe("Title of the content"),
 
-    type: z.string().min(1).nullable(), // 検索対象の種別は増減し得るため列挙せず文字列として受ける
-    url: z.url().nullable(),
+    type: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe(
+        "Entity type (nullable). The set of possible values may vary, so it is not enumerated.",
+      ),
 
-    spaceKey: z.string().min(1).nullable(),
-    spaceName: z.string().min(1).nullable(),
+    url: z
+      .url()
+      .nullable()
+      .describe(
+        "Web UI URL for the content (nullable: may be missing depending on API / permissions / environment).",
+      ),
 
-    excerpt: z.string().nullable(),
-    lastModified: z.string().nullable(), // 表現差を許容して変換責務を後段に寄せるため文字列で受ける
+    spaceKey: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe("Space key (nullable: may be missing on some results)"),
+
+    spaceName: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe("Space name (nullable: may be missing on some results)"),
+
+    excerpt: z
+      .string()
+      .nullable()
+      .describe(
+        "Excerpt/snippet for the hit (nullable: may be absent or empty depending on API and search configuration).",
+      ),
+
+    lastModified: z
+      .string()
+      .nullable()
+      .describe(
+        "Last modified timestamp string (nullable). Kept as string to tolerate format differences across environments.",
+      ),
   })
   .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 
@@ -39,11 +97,31 @@ export const SearchOutputSchema = z
   .object({
     page: z
       .object({
-        total: z.number().int().nonnegative(),
-        start: z.number().int().nonnegative(),
-        limit: z.number().int().positive(),
+        total: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe("Total number of matches for the query"),
+
+        start: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            "Start index used/returned by the tool. If the API response lacks start, request value may be used.",
+          ),
+
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .describe(
+            "Limit used/returned by the tool. If the API response lacks limit, request value may be used.",
+          ),
       })
-      .strict(), // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
-    results: z.array(SearchResultSchema),
+      .strict()
+      .describe("Pagination information"),
+
+    results: z.array(SearchResultSchema).describe("Search result list"),
   })
   .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
