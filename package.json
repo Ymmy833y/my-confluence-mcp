@@ -33,7 +33,7 @@
     "vitest": "^4.0.16"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "dotenv": "^17.2.3",
     "winston": "^3.19.0",
     "zod": "^4.3.4"
