@@ -743,6 +743,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GET_CONTENT_TOOL_NAME = void 0;
 exports.registerGetContentTool = registerGetContentTool;
 const logger_1 = __nccwpck_require__(2006);
+const zod_1 = __nccwpck_require__(924);
 const mapper_1 = __nccwpck_require__(6862);
 const schema_1 = __nccwpck_require__(1624);
 exports.GET_CONTENT_TOOL_NAME = "confluence_get_content";
@@ -816,17 +817,34 @@ function registerGetContentTool(server, gateway, options) {
         try {
             const getContentResponse = await gateway.getContent(getContentParams);
             const out = (0, mapper_1.toToolOutput)(getContentResponse);
+            const parsedOut = schema_1.GetContentOutputSchema.parse(out);
             // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
             const text = typedInput.asMarkdown
-                ? toMarkdown(out.content)
-                : JSON.stringify(out, null, 2);
+                ? toMarkdown(parsedOut.content)
+                : JSON.stringify(parsedOut, null, 2);
             return {
                 content: [{ type: "text", text }],
-                structuredContent: out,
+                structuredContent: parsedOut,
                 isError: false,
             };
         }
         catch (err) {
+            if (err instanceof zod_1.ZodError) {
+                logger_1.logger.error(`tool output validation error: ${JSON.stringify({
+                    tool: exports.GET_CONTENT_TOOL_NAME,
+                    requestId,
+                    issues: err.issues,
+                })}`);
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({ isError: true, error: "Tool output validation failed" }, null, 2),
+                        },
+                    ],
+                    isError: true,
+                };
+            }
             // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
             const message = err instanceof Error ? err.message : String(err);
             logger_1.logger.error(`tool error: ${JSON.stringify({
@@ -880,7 +898,10 @@ function toGetContentParams(input) {
 function toToolOutput(response) {
     // body の欠損時に中途半端な形を返すと呼び出し側の分岐が増えるため null に正規化する
     const body = response.body?.value
-        ? { representation: response.body.value, value: response.body.value }
+        ? {
+            representation: response.body.representation,
+            value: response.body.value,
+        }
         : null;
     return {
         content: {
@@ -920,7 +941,7 @@ exports.GetContentInputSchema = zod_1.z
         .default("storage"),
     includeLabels: zod_1.z.boolean().default(false),
     bodyMaxChars: zod_1.z.number().int().optional(),
-    asMarkdown: zod_1.z.boolean().optional(),
+    asMarkdown: zod_1.z.boolean().default(true),
 })
     .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 /**
@@ -945,7 +966,7 @@ exports.GetContentSchema = zod_1.z
         .nullable(),
     labels: zod_1.z.array(zod_1.z.string()).nullable(),
 })
-    .optional(); // 未取得時のレスポンスを区別できるようにする
+    .strict(); // 期待しない出力を拒否して境界の不整合を早期検知する
 /**
  * Confluence のコンテンツ取得出力を厳密に検証するためのスキーマを定義する
  * 返却形を固定して呼び出し側の分岐を減らす
@@ -968,6 +989,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SEARCH_TOOL_NAME = void 0;
 exports.registerSearchTool = registerSearchTool;
 const logger_1 = __nccwpck_require__(2006);
+const zod_1 = __nccwpck_require__(924);
 const mapper_1 = __nccwpck_require__(417);
 const schema_1 = __nccwpck_require__(5719);
 exports.SEARCH_TOOL_NAME = "confluence_search";
@@ -1060,17 +1082,34 @@ function registerSearchTool(server, gateway, options) {
         try {
             const searchResponse = await gateway.search(searchRequestParams);
             const out = (0, mapper_1.toToolOutput)(searchResponse);
+            const parsedOut = schema_1.SearchOutputSchema.parse(out);
             // 既存クライアント互換のため text も返しつつ構造化データも同時に返す
             const text = typedInput.asMarkdown
-                ? toMarkdown(out)
-                : JSON.stringify(out, null, 2);
+                ? toMarkdown(parsedOut)
+                : JSON.stringify(parsedOut, null, 2);
             return {
                 content: [{ type: "text", text }],
-                structuredContent: out,
+                structuredContent: parsedOut,
                 isError: false,
             };
         }
         catch (err) {
+            if (err instanceof zod_1.ZodError) {
+                logger_1.logger.error(`tool output validation error: ${JSON.stringify({
+                    tool: exports.SEARCH_TOOL_NAME,
+                    requestId,
+                    issues: err.issues,
+                })}`);
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({ isError: true, error: "Tool output validation failed" }, null, 2),
+                        },
+                    ],
+                    isError: true,
+                };
+            }
             // 例外の型に依存すると観測不能な失敗になるため必ず文字列化する
             const message = err instanceof Error ? err.message : String(err);
             logger_1.logger.error(`tool error: ${JSON.stringify({
@@ -1078,14 +1117,6 @@ function registerSearchTool(server, gateway, options) {
                 requestId,
                 message,
             })}`);
-            const fallback = {
-                results: [],
-                page: {
-                    total: 0,
-                    start: typedInput.start,
-                    limit,
-                },
-            };
             return {
                 content: [
                     {
@@ -1093,7 +1124,6 @@ function registerSearchTool(server, gateway, options) {
                         text: JSON.stringify({ isError: true, error: message }, null, 2),
                     },
                 ],
-                structuredContent: fallback,
                 isError: true,
             };
         }
