@@ -935,13 +935,24 @@ const zod_1 = __nccwpck_require__(924);
  */
 exports.GetContentInputSchema = zod_1.z
     .object({
-    id: zod_1.z.string().min(1).max(128),
+    id: zod_1.z.string().min(1).max(128).describe("Confluence content ID"),
     representation: zod_1.z
         .enum(["storage", "view", "export_view"])
-        .default("storage"),
-    includeLabels: zod_1.z.boolean().default(false),
-    bodyMaxChars: zod_1.z.number().int().optional(),
-    asMarkdown: zod_1.z.boolean().default(true),
+        .default("storage")
+        .describe("Preferred body representation to return. If the preferred representation is not available, the tool falls back automatically: Cloud: storage → view → export_view, On-prem: storage → view."),
+    includeLabels: zod_1.z
+        .boolean()
+        .default(false)
+        .describe("If true, include labels in the response."),
+    bodyMaxChars: zod_1.z
+        .number()
+        .int()
+        .optional()
+        .describe("Max chars for body text in the tool output. Large bodies may be truncated."),
+    asMarkdown: zod_1.z
+        .boolean()
+        .default(true)
+        .describe("If true, returns body converted to Markdown when possible."),
 })
     .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 /**
@@ -950,21 +961,50 @@ exports.GetContentInputSchema = zod_1.z
  */
 exports.GetContentSchema = zod_1.z
     .object({
-    id: zod_1.z.string().min(1),
-    title: zod_1.z.string().min(1),
-    type: zod_1.z.string().min(1).nullable(),
-    url: zod_1.z.url().nullable(),
-    spaceKey: zod_1.z.string().min(1).nullable(),
-    spaceName: zod_1.z.string().min(1).nullable(),
-    updated: zod_1.z.string().nullable(),
-    version: zod_1.z.union([zod_1.z.string(), zod_1.z.number()]).nullable(), // 型揺れを吸収して後段の変換責務を局所化する
+    id: zod_1.z.string().min(1).describe("Content ID"),
+    title: zod_1.z.string().min(1).describe("Content title"),
+    type: zod_1.z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Content type (nullable: may be missing depending on API / permissions)"),
+    url: zod_1.z
+        .url()
+        .nullable()
+        .describe("Web UI URL for the content (nullable: may be missing on some environments)"),
+    spaceKey: zod_1.z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Space key (nullable: may be missing depending on API / permissions)"),
+    spaceName: zod_1.z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Space name (nullable: may be missing depending on API / permissions)"),
+    updated: zod_1.z
+        .string()
+        .nullable()
+        .describe("Last updated timestamp string (nullable: format differs by environment)"),
+    version: zod_1.z
+        .union([zod_1.z.string(), zod_1.z.number()])
+        .nullable()
+        .describe("Version identifier (nullable). Union is used to absorb type differences across environments."),
     body: zod_1.z
         .object({
-        representation: zod_1.z.string(),
-        value: zod_1.z.string(),
+        representation: zod_1.z
+            .string()
+            .describe("Representation of the returned body (e.g., storage/view/export_view)"),
+        value: zod_1.z
+            .string()
+            .describe("Body content (HTML/XHTML or converted text depending on options)"),
     })
-        .nullable(),
-    labels: zod_1.z.array(zod_1.z.string()).nullable(),
+        .nullable()
+        .describe("Body object (nullable: may be missing due to permissions, API behavior, or mapping constraints)."),
+    labels: zod_1.z
+        .array(zod_1.z.string())
+        .nullable()
+        .describe("Labels list (nullable: present only when includeLabels=true and supported by environment)"),
 })
     .strict(); // 期待しない出力を拒否して境界の不整合を早期検知する
 /**
@@ -973,7 +1013,7 @@ exports.GetContentSchema = zod_1.z
  */
 exports.GetContentOutputSchema = zod_1.z
     .object({
-    content: exports.GetContentSchema,
+    content: exports.GetContentSchema.describe("Normalized content object for tool consumers"),
 })
     .strict(); // 期待しない出力を拒否して境界の不整合を早期検知する
 
@@ -1201,10 +1241,25 @@ const zod_1 = __nccwpck_require__(924);
  */
 exports.SearchInputSchema = zod_1.z
     .object({
-    cql: zod_1.z.string().min(1),
-    limit: zod_1.z.number().int().min(1),
-    start: zod_1.z.number().int().min(0).default(0),
-    asMarkdown: zod_1.z.boolean().default(true),
+    cql: zod_1.z
+        .string()
+        .min(1)
+        .describe('Confluence Query Language (CQL). Example: type=page AND space.key=ABC AND text~"keyword"'),
+    limit: zod_1.z
+        .number()
+        .int()
+        .min(1)
+        .describe("Max number of results to return per request. Note: the backend may cap the effective limit depending on expansions and environment."),
+    start: zod_1.z
+        .number()
+        .int()
+        .min(0)
+        .default(0)
+        .describe("Start index for pagination (0-based). On some environments, response may not include start; the tool may rely on request value."),
+    asMarkdown: zod_1.z
+        .boolean()
+        .default(true)
+        .describe("If true, returns excerpt in Markdown-friendly form when possible."),
 })
     .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 /**
@@ -1213,14 +1268,35 @@ exports.SearchInputSchema = zod_1.z
  */
 exports.SearchResultSchema = zod_1.z
     .object({
-    id: zod_1.z.string().min(1),
-    title: zod_1.z.string().min(1),
-    type: zod_1.z.string().min(1).nullable(), // 検索対象の種別は増減し得るため列挙せず文字列として受ける
-    url: zod_1.z.url().nullable(),
-    spaceKey: zod_1.z.string().min(1).nullable(),
-    spaceName: zod_1.z.string().min(1).nullable(),
-    excerpt: zod_1.z.string().nullable(),
-    lastModified: zod_1.z.string().nullable(), // 表現差を許容して変換責務を後段に寄せるため文字列で受ける
+    id: zod_1.z.string().min(1).describe("Content ID for the search hit"),
+    title: zod_1.z.string().min(1).describe("Title of the content"),
+    type: zod_1.z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Entity type (nullable). The set of possible values may vary, so it is not enumerated."),
+    url: zod_1.z
+        .url()
+        .nullable()
+        .describe("Web UI URL for the content (nullable: may be missing depending on API / permissions / environment)."),
+    spaceKey: zod_1.z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Space key (nullable: may be missing on some results)"),
+    spaceName: zod_1.z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Space name (nullable: may be missing on some results)"),
+    excerpt: zod_1.z
+        .string()
+        .nullable()
+        .describe("Excerpt/snippet for the hit (nullable: may be absent or empty depending on API and search configuration)."),
+    lastModified: zod_1.z
+        .string()
+        .nullable()
+        .describe("Last modified timestamp string (nullable). Kept as string to tolerate format differences across environments."),
 })
     .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 /**
@@ -1230,12 +1306,25 @@ exports.SearchOutputSchema = zod_1.z
     .object({
     page: zod_1.z
         .object({
-        total: zod_1.z.number().int().nonnegative(),
-        start: zod_1.z.number().int().nonnegative(),
-        limit: zod_1.z.number().int().positive(),
+        total: zod_1.z
+            .number()
+            .int()
+            .nonnegative()
+            .describe("Total number of matches for the query"),
+        start: zod_1.z
+            .number()
+            .int()
+            .nonnegative()
+            .describe("Start index used/returned by the tool. If the API response lacks start, request value may be used."),
+        limit: zod_1.z
+            .number()
+            .int()
+            .positive()
+            .describe("Limit used/returned by the tool. If the API response lacks limit, request value may be used."),
     })
-        .strict(), // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
-    results: zod_1.z.array(exports.SearchResultSchema),
+        .strict()
+        .describe("Pagination information"),
+    results: zod_1.z.array(exports.SearchResultSchema).describe("Search result list"),
 })
     .strict(); // 期待しない入力を拒否して仕様外のパラメータ混入を防止する
 
