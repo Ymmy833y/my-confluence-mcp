@@ -62,7 +62,7 @@ export class CloudConfluenceClient {
    * @throws fetchJson が送出する例外をそのまま送出する
    */
   async getContentRaw(params: {
-    id: string;
+    id: number;
     expand?: string;
   }): Promise<GetContentResponse> {
     const base = cloudWikiBase(this.cfg.baseUrl);

@@ -60,6 +60,13 @@ export function toGetContentResultDto(
   const url = toWebUrl(baseUrl, r._links?.webui);
   const body = pickBodyValue(p.bodyRepresentation, r.body);
 
+  const labels = r.metadata?.labels?.results
+    ?.map((x) => {
+      const v = x?.name ?? x?.label;
+      return typeof v === "string" ? v.trim() : "";
+    })
+    .filter((x) => x.length > 0);
+
   return {
     id: r.id,
     title: r.title,
@@ -74,12 +81,6 @@ export function toGetContentResultDto(
     ...(r.version?.number != null ? { version: r.version.number } : {}),
 
     ...(body != null ? { body } : {}),
-
-    labels:
-      r.metadata?.labels?.results
-        // 不正なデータ混入によりラベル処理全体が崩れるのを避けるため文字列のみを採用する
-        ?.map((x) => x.name)
-        .filter((x): x is string => typeof x === "string" && x.length > 0) ??
-      [],
+    ...(labels != null ? { labels } : {}),
   };
 }

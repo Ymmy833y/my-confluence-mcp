@@ -2,7 +2,7 @@ export const BODY_REPRESENTATIONS = ["storage", "view", "export_view"] as const;
 export type BodyRepresentation = (typeof BODY_REPRESENTATIONS)[number];
 
 export interface GetContentParams {
-  id: string;
+  id: number;
   bodyRepresentation: BodyRepresentation;
   includeLabels: boolean;
 }

@@ -90,7 +90,6 @@ describe("confluence/adapters/cloud/mappers/getContentMapper", () => {
         id: "1",
         title: "T",
         type: "page",
-        labels: [],
       });
     });
 
@@ -122,7 +121,6 @@ describe("confluence/adapters/cloud/mappers/getContentMapper", () => {
         title: "T",
         type: "page",
         body: { representation: "storage", value: "<p>storage</p>" },
-        labels: [],
       });
     });
 
@@ -156,7 +154,6 @@ describe("confluence/adapters/cloud/mappers/getContentMapper", () => {
         title: "T",
         type: "page",
         body: { representation: "view", value: "<p>view</p>" },
-        labels: [],
       });
     });
 
@@ -190,7 +187,6 @@ describe("confluence/adapters/cloud/mappers/getContentMapper", () => {
         title: "T",
         type: "page",
         body: { representation: "export_view", value: "<p>export</p>" },
-        labels: [],
       });
     });
 
@@ -219,7 +215,6 @@ describe("confluence/adapters/cloud/mappers/getContentMapper", () => {
         id: "1",
         title: "T",
         type: "page",
-        labels: [],
       });
     });
   });

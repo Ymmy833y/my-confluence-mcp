@@ -43,7 +43,14 @@ export interface GetContentResponse {
   };
 
   metadata?: {
-    labels?: string[];
+    labels?: {
+      results?: {
+        prefix?: string;
+        name?: string;
+        id?: string;
+        label?: string;
+      }[];
+    };
     [key: string]: unknown;
   };
 

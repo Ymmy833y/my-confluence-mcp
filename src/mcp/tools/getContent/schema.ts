@@ -5,7 +5,7 @@ import { z } from "zod";
  */
 export const GetContentInputSchema = z
   .object({
-    id: z.string().min(1).max(128).describe("Confluence content ID"),
+    id: z.number().int().min(1).describe("Confluence content ID (number)"),
     representation: z
       .enum(["storage", "view", "export_view"])
       .default("storage")
