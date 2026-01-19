@@ -76,7 +76,7 @@ export function registerGetContentTool(
     {
       title: "Confluence Get Content",
       description:
-        "Get a Confluence content by id and return normalized result. Read-only, with body truncation.",
+        "Get a Confluence content by numeric id (integer, e.g. 123456) and return normalized result. Read-only, with body truncation.",
       annotations: {
         readOnlyHint: true,
         openWorldHint: false,
