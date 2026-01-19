@@ -49,7 +49,7 @@ export class OnPremConfluenceClient {
    * @throws fetchJson が送出する例外をそのまま送出する
    */
   async getContentRaw(params: {
-    id: string;
+    id: number;
     expand?: string;
   }): Promise<GetContentResponse> {
     // パスパラメータ由来の予約文字混入でパス解釈が壊れるのを防ぐ

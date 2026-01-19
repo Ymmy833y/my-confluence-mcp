@@ -63,7 +63,14 @@ export function toGetContentResultDto(
   const version = r.data?.version?.number ?? r.version?.number;
 
   const body = pickBodyValue(p.bodyRepresentation, r.data?.body ?? r.body);
-  const labels = r.data?.metadata?.labels ?? r.metadata?.labels;
+  const labels =
+    r.data?.metadata?.labels ??
+    r.metadata?.labels?.results
+      ?.map((x) => {
+        const v = x?.name ?? x?.label;
+        return typeof v === "string" ? v.trim() : "";
+      })
+      .filter((x) => x.length > 0);
 
   return {
     id: r.data?.id ?? r.id,

@@ -8,14 +8,14 @@ describe("mcp/tools/getContent/schema", () => {
   describe("GetContentInputSchema", () => {
     it("id だけ指定すると default が適用される", () => {
       // Arrange
-      const input = { id: "123" };
+      const input = { id: 123 };
 
       // Act
       const actual = GetContentInputSchema.parse(input);
 
       // Assert
       expect(actual).toEqual({
-        id: "123",
+        id: 123,
         representation: "storage",
         includeLabels: false,
         asMarkdown: true,
@@ -24,7 +24,7 @@ describe("mcp/tools/getContent/schema", () => {
 
     it("strict: 未定義のキーがあるとエラーになる", () => {
       // Arrange
-      const input = { id: "123", unknownKey: "x" };
+      const input = { id: 123, unknownKey: "x" };
 
       // Act & Assert
       expect(() => GetContentInputSchema.parse(input)).toThrow();
@@ -40,7 +40,7 @@ describe("mcp/tools/getContent/schema", () => {
 
     it("bodyMaxChars は int 以外を拒否する", () => {
       // Arrange
-      const input = { id: "1", bodyMaxChars: 1.5 };
+      const input = { id: 1, bodyMaxChars: 1.5 };
 
       // Act & Assert
       expect(() => GetContentInputSchema.parse(input)).toThrow();
@@ -48,7 +48,7 @@ describe("mcp/tools/getContent/schema", () => {
 
     it("asMarkdown は boolean を許容する", () => {
       // Arrange
-      const input = { id: "1", asMarkdown: false };
+      const input = { id: 1, asMarkdown: false };
 
       // Act
       const actual = GetContentInputSchema.parse(input);
