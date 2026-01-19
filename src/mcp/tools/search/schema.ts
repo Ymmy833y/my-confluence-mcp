@@ -1,3 +1,4 @@
+import { validateCql } from "@utils/cql";
 import { z } from "zod";
 
 /**
@@ -8,6 +9,10 @@ export const SearchInputSchema = z
     cql: z
       .string()
       .min(1)
+      .superRefine((val, ctx) => {
+        const r = validateCql(val);
+        if (!r.ok) ctx.addIssue({ code: "custom", message: r.message });
+      })
       .describe(
         'Confluence Query Language (CQL). Example: type=page AND space.key=ABC AND text~"keyword"',
       ),
