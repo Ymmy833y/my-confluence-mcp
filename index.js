@@ -305,6 +305,12 @@ function pickBodyValue(representation, body) {
 function toGetContentResultDto(p, r, baseUrl) {
     const url = (0, url_1.toWebUrl)(baseUrl, r._links?.webui);
     const body = pickBodyValue(p.bodyRepresentation, r.body);
+    const labels = r.metadata?.labels?.results
+        ?.map((x) => {
+        const v = x?.name ?? x?.label;
+        return typeof v === "string" ? v.trim() : "";
+    })
+        .filter((x) => x.length > 0);
     return {
         id: r.id,
         title: r.title,
@@ -315,11 +321,7 @@ function toGetContentResultDto(p, r, baseUrl) {
         ...(r.version?.when != null ? { updated: r.version.when } : {}),
         ...(r.version?.number != null ? { version: r.version.number } : {}),
         ...(body != null ? { body } : {}),
-        labels: r.metadata?.labels?.results
-            // 不正なデータ混入によりラベル処理全体が崩れるのを避けるため文字列のみを採用する
-            ?.map((x) => x.name)
-            .filter((x) => typeof x === "string" && x.length > 0) ??
-            [],
+        ...(labels != null ? { labels } : {}),
     };
 }
 
@@ -437,7 +439,13 @@ function toGetContentResultDto(p, r, baseUrl) {
     const updated = r.data?.version?.when ?? r.version?.when;
     const version = r.data?.version?.number ?? r.version?.number;
     const body = pickBodyValue(p.bodyRepresentation, r.data?.body ?? r.body);
-    const labels = r.data?.metadata?.labels ?? r.metadata?.labels;
+    const labels = r.data?.metadata?.labels ??
+        r.metadata?.labels?.results
+            ?.map((x) => {
+            const v = x?.name ?? x?.label;
+            return typeof v === "string" ? v.trim() : "";
+        })
+            .filter((x) => x.length > 0);
     return {
         id: r.data?.id ?? r.id,
         title: r.data?.title ?? r.title ?? "",
@@ -936,7 +944,7 @@ const zod_1 = __nccwpck_require__(924);
  */
 exports.GetContentInputSchema = zod_1.z
     .object({
-    id: zod_1.z.string().min(1).max(128).describe("Confluence content ID"),
+    id: zod_1.z.number().int().min(1).describe("Confluence content ID (number)"),
     representation: zod_1.z
         .enum(["storage", "view", "export_view"])
         .default("storage")
