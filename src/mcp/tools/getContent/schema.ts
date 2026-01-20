@@ -5,7 +5,14 @@ import { z } from "zod";
  */
 export const GetContentInputSchema = z
   .object({
-    id: z.number().int().min(1).describe("Confluence content ID (number)"),
+    id: z.preprocess((v) => {
+      // tool から "123" のように文字列で来るケースを許容する
+      if (typeof v === "string") {
+        const s = v.trim();
+        if (/^\d+$/.test(s)) return Number(s);
+      }
+      return v;
+    }, z.number().int().min(1).describe("Confluence content ID (number)")),
     representation: z
       .enum(["storage", "view", "export_view"])
       .default("storage")

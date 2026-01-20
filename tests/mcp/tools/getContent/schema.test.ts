@@ -22,6 +22,37 @@ describe("mcp/tools/getContent/schema", () => {
       });
     });
 
+    it.each([
+      ["123", 123],
+      [" 123 ", 123],
+      ["001", 1],
+    ])("id が数字文字列の場合は number に変換される: %s", (id, expected) => {
+      // Arrange
+      const input = { id };
+
+      // Act
+      const actual = GetContentInputSchema.parse(input);
+
+      // Assert
+      expect(actual).toEqual({
+        id: expected,
+        representation: "storage",
+        includeLabels: false,
+        asMarkdown: true,
+      });
+    });
+
+    it.each(["0", "-1", "1.5", "12a"])(
+      "id が数値として不正な文字列の場合はエラーになる: %s",
+      (id) => {
+        // Arrange
+        const input = { id };
+
+        // Act & Assert
+        expect(() => GetContentInputSchema.parse(input)).toThrow();
+      },
+    );
+
     it("strict: 未定義のキーがあるとエラーになる", () => {
       // Arrange
       const input = { id: 123, unknownKey: "x" };
