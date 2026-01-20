@@ -944,7 +944,15 @@ const zod_1 = __nccwpck_require__(924);
  */
 exports.GetContentInputSchema = zod_1.z
     .object({
-    id: zod_1.z.number().int().min(1).describe("Confluence content ID (number)"),
+    id: zod_1.z.preprocess((v) => {
+        // tool から "123" のように文字列で来るケースを許容する
+        if (typeof v === "string") {
+            const s = v.trim();
+            if (/^\d+$/.test(s))
+                return Number(s);
+        }
+        return v;
+    }, zod_1.z.number().int().min(1).describe("Confluence content ID (number)")),
     representation: zod_1.z
         .enum(["storage", "view", "export_view"])
         .default("storage")
