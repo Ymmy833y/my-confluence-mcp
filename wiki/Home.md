@@ -5,8 +5,8 @@
 
 ## my-confluence-mcp とは
 
-**my-confluence-mcp** は GitHub Copilot などの AI アシスタントから Confluence のコンテンツを検索 参照するための **MCP サーバー** です  
-Confluence Cloud および オンプレミス版（Data Center Server）に対応し 社内 Wiki に蓄積された知見を開発支援 AI が活用できるようにします  
+**my-confluence-mcp** は GitHub Copilot などの AI アシスタントから Confluence のコンテンツを検索 参照するための **MCP サーバー** です。  
+Confluence Cloud および オンプレミス版（Data Center Server）に対応し 社内 Wiki に蓄積された知見を開発支援 AI が活用できるようにします。
 
 ---
 
@@ -53,4 +53,4 @@ Confluence Cloud および オンプレミス版（Data Center Server）に対�
 ## サポートする環境
 
 - ☁️ Confluence Cloud（REST API v1）
-- 🏢 Confluence Data Center Server（REST API相当）
+- 🏢 Confluence Data Center Server（REST API v9213 相当）

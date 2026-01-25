@@ -13,7 +13,7 @@
 - **Node.js がインストール済み** であること（`node -v` が通ること）
 - Confluence の接続情報を用意しておくこと
   - Cloud の場合：`CONFLUENCE_EMAIL` + `CONFLUENCE_API_TOKEN`
-  - On-prem の場合：`CONFLUENCE_PERSONAL_ACCESS_TOKEN`（PAT）を使うのがおすすめ（環境により異なります）
+  - オンプレ の場合：`CONFLUENCE_PERSONAL_ACCESS_TOKEN`（PAT）を使うのがおすすめ（環境により異なります）
 
 > [!note]
 > `CONFLUENCE_PERSONAL_ACCESS_TOKEN`（PAT）を使う場合は、`CONFLUENCE_EMAIL` / `CONFLUENCE_API_TOKEN` は不要です。  
@@ -87,7 +87,7 @@ MCP サーバーを追加したいプロジェクト側に、次のファイル�
   * `cloud` または `onprem` を指定します。
 * `CONFLUENCE_BASE_URL`
   * Cloud 例：`https://your-domain.atlassian.net/wiki`
-  * On-prem 例：`https://confluence.example.com`（環境に合わせて）
+  * オンプレ 例：`https://confluence.example.com`（環境に合わせて）
 * 認証（どちらか一方）
   * **PAT を使う場合**：`CONFLUENCE_PERSONAL_ACCESS_TOKEN` を設定（`CONFLUENCE_EMAIL` / `CONFLUENCE_API_TOKEN` は空でもOK）
   * **PAT を使わない場合**：`CONFLUENCE_EMAIL` と `CONFLUENCE_API_TOKEN` を設定
@@ -95,7 +95,7 @@ MCP サーバーを追加したいプロジェクト側に、次のファイル�
   * 取得する本文の最大文字数です。ページが長い場合はこの値で切り詰められます。
 
 > [!note]
-> その他の環境変数については、[Wiki／環境変数について](https://github.com/Ymmy833y/my-confluence-mcp/wiki/env) を確認してください。
+> その他の環境変数については、[Wiki／環境変数について](./env) を確認してください。
 
 ---
 
@@ -133,7 +133,7 @@ Copilot Chat（または利用しているAIクライアント）で、例えば
   * JSONの `\` エスケープ漏れがあると失敗します（`\\` にする）。
 
 * **認証エラーになる**
-  * PAT を使うなら `CONFLUENCE_PERSONAL_ACCESS_TOKEN` を設定（Cloud/On-prem どちらでも、環境が許せAllowしていれば利用可能）
+  * PAT を使うなら `CONFLUENCE_PERSONAL_ACCESS_TOKEN` を設定。
   * PAT を使わないなら `CONFLUENCE_EMAIL` と `CONFLUENCE_API_TOKEN` の両方が必要です。
 
 * **取得できるはずのページが出ない**
