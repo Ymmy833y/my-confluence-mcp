@@ -59,9 +59,9 @@ const envSchema = zod_1.z
     .object({
     CONFLUENCE_HOSTING: zod_1.z.enum(confluenceConfig_1.CONFLUENCE_HOSTING_VALUES),
     CONFLUENCE_BASE_URL: zod_1.z.url(),
-    CONFLUENCE_EMAIL: zod_1.z.string().min(3).optional(),
-    CONFLUENCE_API_TOKEN: zod_1.z.string().min(5).optional(),
-    CONFLUENCE_PERSONAL_ACCESS_TOKEN: zod_1.z.string().min(5).optional(),
+    CONFLUENCE_EMAIL: zod_1.z.string().optional(),
+    CONFLUENCE_API_TOKEN: zod_1.z.string().optional(),
+    CONFLUENCE_PERSONAL_ACCESS_TOKEN: zod_1.z.string().optional(),
     CONFLUENCE_TIMEOUT_MS: zod_1.z.preprocess((v) => {
         if (v == null || v === "")
             return DEFAULT_TIMEOUT_MS;
