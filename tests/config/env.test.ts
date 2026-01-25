@@ -88,6 +88,24 @@ describe("config/env", () => {
       expect(actual.CONFLUENCE_API_TOKEN).toBeUndefined();
     });
 
+    it("PAT がある場合、email/api token が空文字でも読み込みできる", () => {
+      // Arrange
+      setProcessEnv({
+        ...baseEnv(),
+        CONFLUENCE_PERSONAL_ACCESS_TOKEN: "pat_xxxxx",
+        CONFLUENCE_EMAIL: "",
+        CONFLUENCE_API_TOKEN: "",
+      });
+
+      // Act
+      const actual = loadEnv();
+
+      // Assert
+      expect(actual.CONFLUENCE_PERSONAL_ACCESS_TOKEN).toBe("pat_xxxxx");
+      expect(actual.CONFLUENCE_EMAIL).toBe("");
+      expect(actual.CONFLUENCE_API_TOKEN).toBe("");
+    });
+
     it("PAT が無い場合、email + api token があれば読み込みできる", () => {
       // Arrange
       setProcessEnv({
@@ -159,16 +177,15 @@ describe("config/env", () => {
     });
 
     it.each([
-      ["CONFLUENCE_TIMEOUT_MS", "15000"],
-      ["CONFLUENCE_SEARCH_MAX_LIMIT", "50"],
-      ["CONFLUENCE_BODY_MAX_CHARS", "20000"],
+      ["CONFLUENCE_TIMEOUT_MS", ""],
+      ["CONFLUENCE_SEARCH_MAX_LIMIT", ""],
+      ["CONFLUENCE_BODY_MAX_CHARS", ""],
     ] as const)(
       "数値系 env が空文字の場合、デフォルト値にフォールバックする",
       (key, _) => {
         // Arrange
         const env = baseEnv();
         env.CONFLUENCE_PERSONAL_ACCESS_TOKEN = "pat_xxxxx";
-        env[key] = "";
 
         setProcessEnv(env);
 

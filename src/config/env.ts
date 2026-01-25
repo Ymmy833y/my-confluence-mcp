@@ -13,9 +13,9 @@ const envSchema = z
 
     CONFLUENCE_BASE_URL: z.url(),
 
-    CONFLUENCE_EMAIL: z.string().min(3).optional(),
-    CONFLUENCE_API_TOKEN: z.string().min(5).optional(),
-    CONFLUENCE_PERSONAL_ACCESS_TOKEN: z.string().min(5).optional(),
+    CONFLUENCE_EMAIL: z.string().optional(),
+    CONFLUENCE_API_TOKEN: z.string().optional(),
+    CONFLUENCE_PERSONAL_ACCESS_TOKEN: z.string().optional(),
 
     CONFLUENCE_TIMEOUT_MS: z.preprocess((v) => {
       if (v == null || v === "") return DEFAULT_TIMEOUT_MS;
