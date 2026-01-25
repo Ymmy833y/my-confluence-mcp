@@ -7,9 +7,18 @@ import { logger } from "@utils/logger";
 
 import pkg from "../../package.json";
 
-import { registerGetContentTool } from "./tools/registerGetContentTool";
-import { registerSearchTool } from "./tools/searchTool";
+import { registerGetContentTool } from "./tools/getContent/index";
+import { registerSearchTool } from "./tools/search/index";
 
+/**
+ * Confluence 向けの MCP Server を stdio で起動して利用可能なツールを登録する
+ * 設定値を集約して起動時ログに出すことで実行環境の差分を追跡可能にする
+ *
+ * @param env 実行環境の設定値
+ * @returns 接続完了まで待機する Promise を返す
+ * @throws Confluence 設定の生成や Gateway 初期化に失敗した場合に例外を投げる
+ * @throws MCP Server の接続に失敗した場合に例外を投げる
+ */
 export async function startMcpServer(env: Env) {
   const confluenceCfg = createConfluenceConfig(env);
 
@@ -20,14 +29,12 @@ export async function startMcpServer(env: Env) {
     version: pkg.version,
   });
 
-  registerSearchTool(
-    server,
-    confluence,
-    confluenceCfg.defaultCql ? { defaultCql: confluenceCfg.defaultCql } : {},
-  );
+  registerSearchTool(server, confluence, {
+    maxLimit: confluenceCfg.searchMaxLimit,
+    defaultCql: confluenceCfg.searchDefaultCql,
+  });
 
   registerGetContentTool(server, confluence, {
-    defaultBodyMaxChars: confluenceCfg.bodyMaxChars,
     maxBodyMaxChars: confluenceCfg.bodyMaxChars,
   });
 
@@ -39,8 +46,9 @@ export async function startMcpServer(env: Env) {
       hosting: confluenceCfg.hosting,
       baseUrl: confluenceCfg.baseUrl,
       timeoutMs: confluenceCfg.timeoutMs,
+      maxLimit: confluenceCfg.searchMaxLimit,
+      defaultCql: confluenceCfg.searchDefaultCql,
       bodyMaxChars: confluenceCfg.bodyMaxChars,
-      defaultCql: confluenceCfg.defaultCql ?? null,
       auth: confluenceCfg.auth.kind,
     })}`,
   );

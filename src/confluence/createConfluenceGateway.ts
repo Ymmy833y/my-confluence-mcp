@@ -5,6 +5,12 @@ import { ConfluenceGateway } from "@core/confluenceGateway";
 import { OnPremConfluenceClient } from "@onprem/onpremConfluenceClient";
 import { OnPremGateway } from "@onprem/onpremGateway";
 
+/**
+ * Confluence の提供形態に応じて適切な Gateway 実装を生成して返す
+ *
+ * @param cfg 接続先の設定を受け取る
+ * @returns 設定に対応した ConfluenceGateway を返す
+ */
 export function createConfluenceGateway(
   cfg: ConfluenceConfig,
 ): ConfluenceGateway {

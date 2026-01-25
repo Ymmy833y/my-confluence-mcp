@@ -4,7 +4,7 @@
 
 * Codex（および類似のコーディングエージェント）が **my-confluence-mcp の規約・設計・変更方針** を毎回同じ前提で理解できるようにする。
 * 迷ったら「既存コードの流儀に寄せる」。不確かな点は **リポジトリ内の実装を探索** し、判断が必要ならユーザーに確認する。
-* 本プロジェクトは **Confluence（Cloud / On-Prem）両対応の MCP サーバー**であり、**hosting 差分（レスポンス差分など）を adapters 層に閉じ込める**。
+* 本プロジェクトは **Confluence（Cloud / オンプレ）両対応の MCP サーバー**であり、**hosting 差分（レスポンス差分など）を adapters 層に閉じ込める**。
 
 ---
 
@@ -26,8 +26,8 @@
 ### 主な機能
 
 * 文字列検索（CQL 等）
-* 特定ページの取得（将来追加しうる）
-* （必要に応じて）ページ本文の整形/Markdown化などの表示用加工
+* 特定ページの取得（page id）
+* ページ本文の整形/Markdown化などの表示用加工
 * ※ページの作成/更新/削除は行わない
 
 ### 技術スタック
@@ -38,7 +38,7 @@
 * ESLint
 * Vitest
 
-> 注意：MCP TypeScript SDK は世代差（v1.x / v2）がある。本プロジェクトでは安定版の **1.25.1** を使用する。
+> 注意：MCP TypeScript SDK は世代差（v1.x / v2）がある。本プロジェクトでは安定版の **1.25.2** を使用する。
 > `server.tool(...)` の旧シグネチャは deprecate されやすいため、基本は **`server.registerTool(...)` を利用**する。
 
 ---
@@ -53,31 +53,58 @@ my-confluence-mcp/
 │  │  └── confluenceConfig.ts         # Env -> ConfluenceConfig（認証/timeout/body上限等）
 │  ├── confluence/
 │  │  ├── core/
-│  │  │  ├── ConfluenceGateway.ts     # MCP ツールが依存する共通IF（ports）
-│  │  │  ├── SearchResult.ts          # 正規化された共通モデル（Normalized*）
-│  │  │  └── normalize.ts             # DTO -> 正規化モデルの共通補助（optional対策など）
+│  │  │  ├── confluenceGateway.ts     # MCP ツールが依存する共通IF（ports）
+│  │  │  ├── searchTypes.ts           # 検索API⇔検索TOOL変換用のDTO
+│  │  │  └── getContentTypes.ts       # コンテンツ取得API⇔コンテンツ取得TOOL変換用のDTO
 │  │  ├── adapters/
 │  │  │  ├── cloud/
+│  │  │  │  ├── api/
+│  │  │  │  │  ├── getContentResponse.ts  # コンテンツ取得APIのレスポンス
+│  │  │  │  │  └── searchResponse.ts      # 検索APIのレスポンス
+│  │  │  │  ├── mappers/
+│  │  │  │  │  ├── getContentMapper.ts    # コンテンツ取得APIのレスポンスのDTO変換
+│  │  │  │  │  └── searchResponse.ts      # 検索APIのレスポンスのDTO変換
 │  │  │  │  ├── cloudConfluenceClient.ts  # HTTP実行・DTO取得（cloud）
-│  │  │  │  ├── searchResponse.ts         # cloud DTO（レスポンス型）
 │  │  │  │  └── cloudGateway.ts           # ConfluenceGateway 実装（cloud）
 │  │  │  └── onprem/
+│  │  │     ├── api/
+│  │  │     │  ├── getContentResponse.ts  # コンテンツ取得APIのレスポンス
+│  │  │     │  └── searchResponse.ts      # 検索APIのレスポンス
+│  │  │     ├── mappers/
+│  │  │     │  ├── getContentMapper.ts    # コンテンツ取得APIのレスポンスのDTO変換
+│  │  │     │  └── searchResponse.ts      # 検索APIのレスポンスのDTO変換
 │  │  │     ├── onpremConfluenceClient.ts # HTTP実行・DTO取得（onprem）
 │  │  │     ├── searchResponse.ts         # onprem DTO（レスポンス型）
 │  │  │     └── onpremGateway.ts          # ConfluenceGateway 実装（onprem）
-│  │  └── factory/
-│  │     └── createConfluenceGateway.ts   # hosting に応じて gateway を選択
+│  │  └── createConfluenceGateway.ts      # hosting に応じて gateway を選択
+│  │  └── index.ts                        # createConfluenceGatewayのexport
 │  ├── mcp/
 │  │  ├── tools/
-│  │  │  └── registerSearchTool.ts    # 例：ツール登録（server.registerTool）
-│  │  └── server.ts                   # MCP server（ツール登録・transport起動）
-│  ├── utils/                         # ユーティリティー
-│  │  └── logger.ts                   # logger（redact 等含む）
-│  └── index.ts                       # エントリーポイント
+│  │  │  ├── getContent/
+│  │  │  │  ├── index.ts            # ツール登録
+│  │  │  │  ├── mapper.ts           # input／output⇔DTO変換
+│  │  │  │  ├── schema.ts           # input／outputのスキーマ
+│  │  │  │  └── types.ts            # input／outputのスキーマの型定義
+│  │  │  └── search/
+│  │  │     ├── index.ts            # ツール登録
+│  │  │     ├── mapper.ts           # input／output⇔DTO変換
+│  │  │     ├── schema.ts           # input／outputのスキーマ
+│  │  │     └── types.ts            # input／outputのスキーマの型定義
+│  │  └── server.ts                 # MCP server 定義・起動
+│  ├── utils/                       # ユーティリティー
+│  │  ├── auth.ts
+│  │  ├── cql.ts
+│  │  ├── htmlToMarkdown.ts
+│  │  ├── http.ts
+│  │  ├── logger.ts
+│  │  └── url.ts
+│  └── index.ts                     # エントリーポイント
+├── tests/                          # テストコード
 ├── eslint.config.mjs
-├── tsconfig.eslint.json
 ├── package.json
-└── tsconfig.json
+├── tsconfig.eslint.json
+├── tsconfig.json
+└── vitest.config.ts
 ```
 
 * Agent が参照するのは **上記のファイル/ディレクトリ内** とする（node_modules 等は参照外）
@@ -111,51 +138,39 @@ my-confluence-mcp/
 
 * 目的：hosting 差分（レスポンス構造、URL差、メタデータ差）を吸収し、**共通IF（ConfluenceGateway）** を満たす
 * 主な責務
-
   * `ConfluenceGateway` を implements
-  * Client から受け取った DTO を **正規化モデル（SearchResultPage/NormalizedSearchItem）** に変換
-  * total/start/limit の補完、URL の絶対化、欠損時の扱い統一
-  * `exactOptionalPropertyTypes` を壊さない整形（undefined のプロパティを付与しない等）
+  * Client から受け取った response を正規化モデルに変換（`src/confluence/adapters/**/*mapper.ts`）
 * 禁止事項
-
   * MCP 用の Markdown 整形（ツール層で行う）
   * env 読み取り（config 層で作る）
   * 低レイヤの HTTP 設定（timeout/auth/retry 等は client）
 
 #### (C) Client 層（HTTP）：`src/confluence/adapters/*/*ConfluenceClient.ts`
 
-* 目的：Confluence の HTTP API を叩き、**生レスポンス（DTO）** を返す
+* 目的：Confluence の HTTP API を叩き、生レスポンスを返す
 * 主な責務
-
   * URL 組み立て（パス・クエリ）
   * 認証ヘッダ付与（Basic / Bearer）
   * timeout / HTTP status ハンドリング（必要なら最小のリトライ）
-  * JSON を DTO 型（`searchResponse.ts`）として返す
+  * JSON を `*Response.ts` として返す
 * 禁止事項
-
   * 正規化モデルへの変換
   * 返却フィールドの取捨選択（それは gateway/tool の責務）
 
 #### (D) Core（Interface・モデル）：`src/confluence/core/*`
-
 * 目的：ツール層が依存する **安定したInterfaceと正規化モデル**を提供
 * 主な責務
-
   * `ConfluenceGateway`（ports）定義
-  * `SearchResultPage`/`NormalizedSearchItem` 等の正規化モデル定義
-  * 正規化補助（normalize）
+  * 正規化モデル定義
 * 禁止事項
-
   * adapters の DTO を import しない（依存逆流）
 
-#### (E) Factory：`src/confluence/factory/*`
+#### (E) Factory：`src/confluence/createConfluenceGateway.ts`
 
 * 目的：`hosting` に応じた gateway を一箇所で組み立てる（if 分岐の集約）
 * 主な責務
-
   * `createConfluenceGateway(config)` のみで分岐
 * 禁止事項
-
   * ツール登録や MCP サーバ起動に関与しない
 
 ---
@@ -166,7 +181,7 @@ my-confluence-mcp/
 
 * `mcp/tools` → `confluence/core`（IF/モデル）に依存してよい
 * `mcp/tools` → `confluence/adapters` には **依存しない**
-* `confluence/adapters` → `confluence/core` へは依存してよい（implements/変換）
+* `confluence/adapters` → `confluence/core` へは依存してよい
 * `confluence/core` → `confluence/adapters` へは **依存しない**
 * `config` は下位層（confluence, mcp）から参照されるが、逆向き参照はしない
 
@@ -186,7 +201,6 @@ my-confluence-mcp/
 [src/confluence/core/ConfluenceGateway]（共通IF）
    ↓
 [src/confluence/adapters/{cloud|onprem}/*Gateway]
-   - DTO → 正規化（SearchResultPage）
    ↓
 [src/confluence/adapters/{cloud|onprem}/*ConfluenceClient]
    - fetch / auth / timeout
@@ -205,16 +219,14 @@ my-confluence-mcp/
 
 * **1ツール = 1ファイル**（`src/mcp/tools/registerXxxTool.ts` など）
 * ツールは以下を必ず持つ：
-
   * `name`：一意・短く・動詞から（例: `confluence_search` / `confluence_get_page`）
   * `description`：モデルが誤用しないための **制約を明記**
-
     * 例：「read-only」「limit最大」「本文の上限」「ページ配下のみ」など
   * `inputSchema`：Zod で厳密に（曖昧な any を排除）
-  * `outputSchema`：可能なら定義し、`structuredContent` の形を固定する
+  * `outputSchema`：定義し`structuredContent` の形を固定する
 * 返す情報は **最小限** を基本にする（トークン節約・漏洩リスク低減）
 * `server.registerTool(...)` を利用し、旧 `server.tool(...)` は基本使わない
-* ログ相関は **`ctx.requestId` を優先**（あるなら必ずログに含める）
+* ログ相関は **`ctx.requestId` を優先**
 
 ### 5.2 入力検証・制約
 
@@ -225,12 +237,7 @@ my-confluence-mcp/
 
 ### 5.3 正規化モデル設計（SearchResult）
 
-* Cloud/OnPrem の差分を吸収するため、ツールが使うのは **Normalized モデルのみ**
-* `exactOptionalPropertyTypes: true` を前提にする場合：
-
-  * `spaceKey?: string` のような optional は **`spaceKey: undefined` を付けない**
-  * JSON 出力（structuredContent）では `undefined` が落ちるため、必要なら `null` に寄せる（スキーマも nullable）
-* DTO の型は adapters 側の `searchResponse.ts` に閉じる（core に持ち込まない）
+* Cloud/OnPrem の差分を吸収するため、ツールが使うのは **core 内の DTO モデルのみ**
 
 ### 5.4 エラーハンドリング方針
 
@@ -254,22 +261,6 @@ my-confluence-mcp/
 * SSRF になり得る URL 入力は原則禁止（受けるなら allowlist 必須）
 * Read-only でも情報漏洩の面では高リスク：返却情報を制御、必要ならマスク
 
-### 5.7 テスト方針（Vitest）
-
-* core：
-
-  * `normalize.ts` の変換（optional/undefined 対応）を単体テスト
-* adapters/gateway：
-
-  * DTO → 正規化の変換をテスト（Cloud/OnPremの差分吸収）
-* adapters/client：
-
-  * fetch をモックして HTTP status ごとの挙動をテスト
-* tools：
-
-  * 入力検証、limit 制約、出力整形（structuredContent/Markdown）をテスト
-* 失敗系（401/403/404/429/5xx、タイムアウト）を必ず用意
-
 ---
 
 ## 6. アンチパターン（禁止・非推奨）
@@ -289,7 +280,6 @@ my-confluence-mcp/
 ### 6.3 型・スキーマの劣化
 
 * `any` / `unknown` を濫用し、スキーマ検証なしで通す
-* `exactOptionalPropertyTypes` を無視して `optional?:` に `undefined` を付与する
 * tool 名や引数仕様を頻繁に変える（クライアント互換性が壊れる）
 
 ### 6.4 性能・安全性の劣化
@@ -306,7 +296,6 @@ my-confluence-mcp/
 
 * `strict` 前提で型を明確にする。不要な `any` は避ける
 * `exactOptionalPropertyTypes: true` を意識し、optional プロパティに `undefined` を代入しない
-
   * 例：`{ ...(v !== undefined ? { key: v } : {}) }`
 * `import type` を適切に使う（型専用 import は type に寄せる）
 * 既存ファイル名や import パスを不用意に変更しない（typo を含む可能性があるため）
@@ -315,14 +304,11 @@ my-confluence-mcp/
 
 * core は PascalCase（`ConfluenceGateway.ts` / `SearchResult.ts`）を基本
 * adapters 配下の実装は hosting 接頭辞を付け、役割が一目で分かる名前にする
-
   * `cloudConfluenceClient.ts`, `cloudGateway.ts`, `searchResponse.ts`
-* DTO ファイルは `searchResponse.ts` のように用途で命名し、外に漏らさない
 
 ### 7.3 TSDoc
 
 * 公開 Class / 公開関数（export）には TSDoc を記載（簡潔）
-
   * 概要、制約、例外（必要なら）
 * gateway/client は「責務（何をしないか）」も短く書く
 
@@ -357,6 +343,7 @@ npm run dev
 
 ```sh
 npm run build
+npm run bundle
 ```
 
 ### 静的解析
