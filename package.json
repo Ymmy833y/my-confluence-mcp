@@ -1,6 +1,6 @@
 {
   "name": "my-confluence-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Confluence MCP Server for Github Copilot",
   "license": "MIT",
   "author": "Ymmy833y",
