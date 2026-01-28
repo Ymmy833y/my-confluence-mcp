@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
-  <a href="https://github.com/Ymmy833y/my-confluence-mcp/releases/tag/v1.0.0"><img alt="Version 1.0.0" src="https://img.shields.io/badge/Version-1.0.0-red.svg"></a>
+  <a href="https://github.com/Ymmy833y/my-confluence-mcp/releases/tag/v1.0.1"><img alt="Version 1.0.1" src="https://img.shields.io/badge/Version-1.0.1-red.svg"></a>
   <img alt="TypeScript" src="https://img.shields.io/badge/-TypeScript-blue?style=flat-square&logo=typescript&logoColor=white">
 </p>
 
